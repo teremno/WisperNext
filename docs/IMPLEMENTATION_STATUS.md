@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-Milestone 0 — Repository and quality gates
+Milestone 1 — Domain and state machine
 
 ## Status
 
@@ -45,8 +45,7 @@ python -m pip install -e ".[dev]"
 - `mypy src`: passed with no issues in 9 source files.
 - `pytest -m "not hardware"`: 1 passed.
 - Editable package import smoke test: passed.
-- CI definition: Windows runners with Python 3.12 and 3.13; remote execution remains
-  to be confirmed after push.
+- GitHub Actions run `30806377431`: passed on Windows with Python 3.12 and 3.13.
 
 ### Hardware results
 
@@ -55,15 +54,77 @@ Windows focus claims are made.
 
 ## Residual risks
 
-- Windows CI configuration exists but has not yet been observed passing for this milestone.
-- Python 3.13 compatibility can only be verified by CI in the current environment.
 - Pytest passed with a local sandbox warning because the environment denied creation of
   `.pytest_cache`; test execution and results were unaffected.
 - Product implementation beyond an import-safe package skeleton is intentionally absent.
 
-## Next milestone
+## Milestone 0 next milestone
 
 Milestone 1 — Domain and state machine.
+
+## Milestone 1 plan
+
+1. Define immutable typed states, user intents, operation results, and domain errors.
+2. Implement one authoritative state machine with an explicit transition graph.
+3. Reject illegal transitions and duplicate toggle intents without mutating state.
+4. Add table-driven unit tests for every legal and illegal edge,
+   toggle behavior, recovery, and shutdown.
+5. Run the full quality gates, document evidence, then commit and push.
+
+## Milestone 1 evidence
+
+- Date: 2026-08-03
+- Milestone commit: the `feat: add tested application state machine` commit containing
+  this report.
+- Scope: typed application states, intents, immutable snapshots/results, privacy-safe
+  domain errors, authoritative transition graph, recoverable failures, retry, and shutdown.
+- Concurrency: state checks and updates are serialized with `RLock`; concurrent toggles
+  accept exactly one start request.
+- Architecture: `docs/adr/0001-state-machine-concurrency.md` records the concurrency
+  decision and keeps blocking I/O outside the state machine.
+
+### Files changed
+
+- `src/wispernext/domain/__init__.py`
+- `src/wispernext/domain/errors.py`
+- `src/wispernext/domain/models.py`
+- `src/wispernext/domain/state.py`
+- `tests/unit/test_state_machine.py`
+- `docs/adr/0001-state-machine-concurrency.md`
+- `docs/IMPLEMENTATION_STATUS.md`
+
+### Commands run
+
+```powershell
+python -m ruff format src/wispernext/domain tests/unit/test_state_machine.py
+python -m ruff check src/wispernext/domain tests/unit/test_state_machine.py
+python -m mypy src
+python -m pytest tests/unit/test_state_machine.py -q
+.\scripts\run_checks.ps1
+```
+
+### Automated results
+
+- `ruff format --check`: 29 files already formatted.
+- `ruff check`: passed.
+- `mypy src`: passed with no issues in 13 source files.
+- `pytest -m "not hardware"`: 161 passed.
+- Coverage includes every direct legal and illegal state edge, every active-state failure
+  edge, retry, shutdown, sequential duplicate toggles, and concurrent duplicate toggles.
+
+### Hardware results
+
+No hardware tests were run or required for this platform-independent milestone.
+
+### Residual risks and unverified assumptions
+
+- The state machine is not yet connected to an application controller or composition root.
+- Transition logging and correlation lifecycle belong to later application/observability work.
+- Cross-process single-instance protection is separate from in-process transition locking.
+
+## Next milestone
+
+Milestone 2 — Settings and secrets.
 
 ## Agent update format
 
