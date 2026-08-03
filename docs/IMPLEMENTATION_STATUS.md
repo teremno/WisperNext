@@ -2,11 +2,11 @@
 
 ## Current milestone
 
-Milestone 2 — Settings and secrets
+Milestone 3 — Safe audio vertical slice
 
 ## Status
 
-Complete.
+In progress.
 
 ## Milestone 0 plan
 
@@ -204,6 +204,55 @@ No hardware tests were run or required for settings serialization or environment
 
 Milestone 3 — Safe audio vertical slice. This milestone requires real Windows microphone
 interaction before it can be declared complete.
+
+## Milestone 3 plan
+
+1. Record the Windows audio backend and stable-identity decisions in ADRs.
+2. Add typed device metadata, metadata-only enumeration, deterministic identity resolution,
+   and explicit ambiguity/not-found outcomes.
+3. Implement one single-owner bounded capture lifecycle with idempotent cleanup, late-frame
+   rejection, and fake-backend contract tests.
+4. Implement raw float32 signal metrics, validation categories, and non-mutating resampling.
+5. Add a concrete shared-mode Windows capture adapter without any audio-setting mutation.
+6. Run all automated gates and an opt-in device enumeration smoke test.
+7. Pause only for explicit real-microphone selection and the required repeated-capture test.
+
+## Milestone 3 automated evidence (hardware gate pending)
+
+- Date: 2026-08-03
+- Scope implemented: metadata-only device catalog, non-index stable preference keys,
+  ambiguity-safe resolution, connection hints, one-owner bounded capture, idempotent cleanup,
+  callback status capture, raw metrics, validation categories, and linear mono resampling.
+- Runtime dependency: `sounddevice` 0.5.x, isolated behind `AudioBackend` and documented in
+  `docs/adr/0003-windows-audio-backend.md`.
+- Stable identity limitations and no-fallback behavior are documented in
+  `docs/adr/0004-stable-microphone-identity.md`.
+- The local metadata-only smoke test enumerated 14 input representations across MME,
+  DirectSound, WASAPI, and WDM-KS, including built-in and Bluetooth metadata. It opened zero
+  streams and made no Windows audio changes.
+- A Realtek WASAPI endpoint is available for an explicit first hardware test as
+  `metadata:v1:a0c94924e767bb9580da02aa`.
+
+### Automated commands and results
+
+```powershell
+python -m pip install -e ".[dev]"
+.\scripts\run_checks.ps1
+python -c "from wispernext.audio.backend import SoundDeviceBackend; ..."
+```
+
+- `ruff format --check`: 50 files already formatted.
+- `ruff check`: passed.
+- `mypy src`: passed with no issues in 21 source files.
+- `pytest -m "not hardware"`: 200 passed, 1 hardware test deselected.
+- The PowerShell check scripts now propagate native command failures through
+  `$LASTEXITCODE`; a mypy failure can no longer be masked by a later passing pytest command.
+
+### Hardware gate
+
+No recording stream has been opened. Milestone 3 remains incomplete until the user explicitly
+selects a microphone, authorizes a short live capture, and completes the required repeat and
+independent-recorder checks. No hardware reliability claim is made.
 
 ## Agent update format
 

@@ -10,7 +10,10 @@ readme = "README.md"
 requires-python = ">=3.12,<3.14"
 license = { text = "MIT" }
 authors = [{ name = "Oleksandr Smuryhin" }]
-dependencies = []
+dependencies = [
+  # PortAudio binding for metadata enumeration and one shared input stream.
+  "sounddevice>=0.5.2,<0.6",
+]
 
 [project.optional-dependencies]
 dev = [
