@@ -2,10 +2,10 @@
 
 ## Foundation
 
-- [ ] Package installs in editable mode.
-- [ ] CI runs on Windows.
-- [ ] Ruff, mypy, and pytest pass.
-- [ ] Single authoritative state machine exists.
+- [x] Package installs in editable mode.
+- [x] CI runs on Windows.
+- [x] Ruff, mypy, and pytest pass.
+- [x] Single authoritative state machine exists.
 
 ## Audio safety
 

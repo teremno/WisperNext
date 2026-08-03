@@ -43,7 +43,7 @@ packages = ["wispernext"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra --strict-config --strict-markers"
+addopts = "-ra --strict-config --strict-markers --basetemp=.pytest-tmp"
 testpaths = ["tests"]
 markers = [
   "hardware: requires explicit Windows hardware access",
