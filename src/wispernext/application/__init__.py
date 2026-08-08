@@ -1,5 +1,6 @@
 """Application use cases."""
 
+from wispernext.application.controller import DictationController, TaskScheduler
 from wispernext.application.delivery import (
     AutoPasteResult,
     AutoPasteService,
@@ -9,6 +10,7 @@ from wispernext.application.delivery import (
     ClipboardDeliveryService,
     ClipboardDeliveryStatus,
     FocusContext,
+    PastePort,
 )
 from wispernext.application.transcription import (
     ProviderFailureCode,
@@ -28,8 +30,11 @@ __all__ = [
     "ClipboardDeliveryResult",
     "ClipboardDeliveryService",
     "ClipboardDeliveryStatus",
+    "DictationController",
     "FocusContext",
+    "PastePort",
     "ProviderFailureCode",
+    "TaskScheduler",
     "TranscriptionFailureCode",
     "TranscriptionProviderError",
     "TranscriptionResult",

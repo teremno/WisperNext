@@ -2,11 +2,87 @@
 
 ## Current milestone
 
-Milestone 5 — Clipboard delivery
+Milestone 6 — Floating button, hotkeys, and single instance
 
 ## Status
 
-Complete.
+In progress.
+
+## Milestone 6 plan
+
+1. Add a Win32 named-mutex single-instance guard with deterministic cleanup.
+2. Add strict hotkey parsing/validation and a `RegisterHotKey` adapter with no keyboard hook.
+3. Add a non-activating, always-on-top, draggable PySide6 floating control with accessible
+   metadata and shape-plus-color state rendering.
+4. Migrate settings schema v2 to v3 for logical button coordinates and keep them on a visible
+   screen after display changes.
+5. Add a background dictation controller connecting state, audio, Groq, clipboard, and optional
+   safe paste without blocking the Qt thread.
+6. Replace the placeholder entry point and add deterministic contract/UI tests.
+7. Verify real focus behavior, single instance, physical hotkey, and Windows On-Screen Keyboard;
+   document only the scenarios actually observed.
+8. Commit, push, and verify CI.
+
+## Milestone 6 automated implementation and Windows evidence
+
+- Date: 2026-08-08
+- Status: implementation complete; physical-keyboard and Windows On-Screen Keyboard gate pending.
+- Scope: PySide6 floating control, industrial high-contrast state rendering, accessibility
+  metadata, non-activating Win32 style, dragging and multi-monitor position recovery, settings
+  schema v3, strict hotkey parser, `RegisterHotKey` adapter, Qt native event bridge, named-mutex
+  single instance, minimal tray Exit action, and serialized background dictation controller.
+- Architecture: `docs/adr/0007-non-activating-floating-button.md` and
+  `docs/adr/0008-global-hotkey-and-single-instance.md` record the dependency, focus, accessibility,
+  hotkey, OSK, and process-ownership decisions.
+- Dependency: `PySide6-Essentials` 6.11.1 installed locally. Addons were intentionally omitted.
+
+### Automated commands and results
+
+```powershell
+python -m pip install -e ".[dev]"
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy src
+python -m pytest -m "not hardware"
+python scripts/render_button_states.py
+python scripts/run_desktop_smoke.py
+python scripts/run_focus_button_smoke.py
+python scripts/run_hotkey_smoke.py F8 --self-send-f8
+```
+
+- `ruff format --check`: passed.
+- `ruff check`: passed.
+- `mypy src`: passed with no issues in 36 source files.
+- `pytest -m "not hardware"`: 289 passed, 1 audio hardware test deselected.
+- The full desktop composition displayed the real floating control and tray, registered resources,
+  entered ready state, then closed cleanly with exit code 0 without opening a microphone.
+- Visual QA rendered all six required states. Each uses a distinct geometric symbol as well as a
+  distinct color; no animation or extra status panel was added.
+
+### Windows focus and hotkey evidence
+
+- The first focus harness used Qt logical coordinates and missed the button under display scaling;
+  no callback ran and no focus conclusion was drawn.
+- The corrected harness used the native HWND rectangle. A real OS-level mouse click invoked the
+  button while preserving both the foreground target window and the text-field focus.
+- `RegisterHotKey(F8)` plus a Windows input self-send produced `WM_HOTKEY`. Qt 6.11.1 delivered the
+  event as `windows_generic_MSG`, so the adapter now accepts both Qt-documented dispatcher and
+  observed generic Windows message types while still matching the exact Wisper message ID.
+- Two manual physical-F8 listener windows expired without receiving a user key press. This is not
+  recorded as a functional failure because no press was observed.
+- Windows On-Screen Keyboard opened successfully, but its protected accessibility tree exposed no
+  individual key controls to UI Automation. A 60-second manual OSK listener expired without a user
+  click, and OSK was then closed normally.
+- Therefore physical-keyboard, OSK, and modifier-combination support remain unverified and the two
+  related checklist items remain open. Milestone 6 is not declared complete yet.
+
+### Residual risks
+
+- Exact focus preservation is verified with a disposable native test field, not yet with Notepad,
+  browser, and a third desktop application.
+- Protected/elevated target windows may reject input, and some system hotkeys may already be owned.
+- The controller's Groq request is timeout-bounded but cannot be cancelled after SDK dispatch.
+- The settings UI for changing the default F8 hotkey belongs to Milestone 8.
 
 ## Milestone 5 plan
 

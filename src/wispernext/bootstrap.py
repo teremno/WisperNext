@@ -8,6 +8,7 @@ from pathlib import Path
 from wispernext.application import (
     AutoPasteService,
     ClipboardDeliveryService,
+    PastePort,
     TranscriptionService,
 )
 from wispernext.audio.backend import SoundDeviceBackend
@@ -39,6 +40,7 @@ class ApplicationServices:
     transcription: TranscriptionService
     clipboard_delivery: ClipboardDeliveryService
     auto_paste: AutoPasteService
+    focus_port: PastePort
 
 
 def build_application_services(
@@ -58,6 +60,7 @@ def build_application_services(
         )
     else:
         secret_provider = EnvironmentSecretProvider(environ)
+    paste_adapter = WindowsPasteAdapter()
     return ApplicationServices(
         state_machine=ApplicationStateMachine(),
         microphone_catalog=MicrophoneCatalogService(audio_backend),
@@ -69,5 +72,6 @@ def build_application_services(
             GroqTranscriptionTransportFactory(),
         ),
         clipboard_delivery=ClipboardDeliveryService(WindowsClipboard()),
-        auto_paste=AutoPasteService(WindowsPasteAdapter(), wisper_process_id=os.getpid()),
+        auto_paste=AutoPasteService(paste_adapter, wisper_process_id=os.getpid()),
+        focus_port=paste_adapter,
     )

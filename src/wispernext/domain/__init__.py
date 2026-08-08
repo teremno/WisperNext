@@ -1,6 +1,12 @@
 """Platform-independent domain contracts for WisperNext."""
 
 from wispernext.domain.errors import AppError, ErrorCode
+from wispernext.domain.hotkeys import (
+    HotkeyModifier,
+    HotkeySpec,
+    HotkeyValidationError,
+    parse_hotkey,
+)
 from wispernext.domain.models import ApplicationIntent, MicrophoneSelectionMode, RejectionReason
 from wispernext.domain.state import (
     ALLOWED_TRANSITIONS,
@@ -18,9 +24,13 @@ __all__ = [
     "ApplicationState",
     "ApplicationStateMachine",
     "ErrorCode",
+    "HotkeyModifier",
+    "HotkeySpec",
+    "HotkeyValidationError",
     "IntentResult",
     "MicrophoneSelectionMode",
     "RejectionReason",
     "StateSnapshot",
     "TransitionResult",
+    "parse_hotkey",
 ]

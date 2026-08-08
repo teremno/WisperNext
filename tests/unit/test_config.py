@@ -24,6 +24,8 @@ def test_settings_round_trip_preserves_typed_values(tmp_path: Path) -> None:
         selected_microphone_id="endpoint-123",
         hotkey="Ctrl+F8",
         auto_paste=True,
+        floating_button_x=-320,
+        floating_button_y=180,
         max_recording_seconds=120,
         input_language=LanguageCode.UKRAINIAN,
         output_language=LanguageCode.ENGLISH,
@@ -66,12 +68,27 @@ def test_version_one_manual_microphone_is_migrated_without_losing_preference() -
     )
     payload["schema_version"] = 1
     payload.pop("microphone_selection_mode")
+    payload.pop("floating_button_x")
+    payload.pop("floating_button_y")
 
     migrated = decode_settings(payload)
 
     assert migrated.schema_version == CURRENT_SCHEMA_VERSION
     assert migrated.microphone_selection_mode is MicrophoneSelectionMode.MANUAL
     assert migrated.selected_microphone_id == "metadata:v1:abc"
+
+
+def test_version_two_settings_migrate_with_unset_button_position() -> None:
+    payload = encode_settings(Settings())
+    payload["schema_version"] = 2
+    payload.pop("floating_button_x")
+    payload.pop("floating_button_y")
+
+    migrated = decode_settings(payload)
+
+    assert migrated.schema_version == CURRENT_SCHEMA_VERSION
+    assert migrated.floating_button_x is None
+    assert migrated.floating_button_y is None
 
 
 @pytest.mark.parametrize(
@@ -88,6 +105,11 @@ def test_version_one_manual_microphone_is_migrated_without_losing_preference() -
         {"max_recording_seconds": 1_801},
         {"input_language": "xx"},
         {"hotkey": ""},
+        {**encode_settings(Settings()), "hotkey": "A"},
+        {**encode_settings(Settings()), "hotkey": "7"},
+        {**encode_settings(Settings()), "hotkey": "/"},
+        {**encode_settings(Settings()), "floating_button_x": 10},
+        {**encode_settings(Settings()), "floating_button_x": True, "floating_button_y": 10},
         {
             **encode_settings(Settings()),
             "microphone_selection_mode": MicrophoneSelectionMode.MANUAL.value,

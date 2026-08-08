@@ -19,10 +19,10 @@
 
 ## Accessibility and input
 
-- [ ] Floating button does not steal focus on Windows 11.
-- [ ] Same button toggles start/stop.
+- [x] Floating button does not steal focus on Windows 11.
+- [x] Same button toggles start/stop.
 - [ ] Allowed hotkeys work.
-- [ ] Letters, digits, and ordinary punctuation are rejected as unmodified hotkeys.
+- [x] Letters, digits, and ordinary punctuation are rejected as unmodified hotkeys.
 - [ ] Windows On-Screen Keyboard test is documented.
 
 ## Groq
@@ -63,7 +63,7 @@
 
 - [ ] Desktop shortcut is created.
 - [ ] Start menu shortcut is created.
-- [ ] Single-instance behavior works.
+- [x] Single-instance behavior works.
 - [ ] Uninstall is clean.
 - [ ] Autostart is opt-in.
 - [ ] 100 repeated recordings pass on Windows hardware.

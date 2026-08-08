@@ -10,9 +10,9 @@ from tempfile import NamedTemporaryFile
 from typing import Final, cast
 from uuid import uuid4
 
-from wispernext.domain import MicrophoneSelectionMode
+from wispernext.domain import HotkeyValidationError, MicrophoneSelectionMode, parse_hotkey
 
-CURRENT_SCHEMA_VERSION: Final = 2
+CURRENT_SCHEMA_VERSION: Final = 3
 MIN_RECORDING_SECONDS: Final = 5
 MAX_RECORDING_SECONDS: Final = 1_800
 
@@ -49,6 +49,8 @@ class Settings:
     autostart: bool = False
     max_recording_seconds: int = 300
     launch_floating_button: bool = True
+    floating_button_x: int | None = None
+    floating_button_y: int | None = None
     input_language: LanguageCode | None = None
     output_language: LanguageCode | None = None
     safe_formatting: bool = True
@@ -74,8 +76,14 @@ class SettingsStorageError(RuntimeError):
 
 
 _FIELDS: Final = frozenset(Settings.__dataclass_fields__)
-_VERSION_ZERO_FIELDS: Final = _FIELDS - {"schema_version", "microphone_selection_mode"}
-_VERSION_ONE_FIELDS: Final = _FIELDS - {"microphone_selection_mode"}
+_POSITION_FIELDS: Final = frozenset({"floating_button_x", "floating_button_y"})
+_VERSION_ZERO_FIELDS: Final = _FIELDS - {
+    "schema_version",
+    "microphone_selection_mode",
+    *_POSITION_FIELDS,
+}
+_VERSION_ONE_FIELDS: Final = _FIELDS - {"microphone_selection_mode", *_POSITION_FIELDS}
+_VERSION_TWO_FIELDS: Final = _FIELDS - _POSITION_FIELDS
 
 
 def decode_settings(payload: object) -> Settings:
@@ -121,6 +129,21 @@ def decode_settings(payload: object) -> Settings:
             **values,
             "schema_version": CURRENT_SCHEMA_VERSION,
             "microphone_selection_mode": selection_mode,
+            "floating_button_x": None,
+            "floating_button_y": None,
+        }
+    elif version == 2:
+        unknown = set(values) - _VERSION_TWO_FIELDS
+        missing = _VERSION_TWO_FIELDS - set(values)
+        if unknown:
+            raise SettingsValidationError(f"Unknown settings fields: {sorted(unknown)!r}.")
+        if missing:
+            raise SettingsValidationError(f"Missing settings fields: {sorted(missing)!r}.")
+        values = {
+            **values,
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "floating_button_x": None,
+            "floating_button_y": None,
         }
     elif version != CURRENT_SCHEMA_VERSION:
         raise SettingsValidationError(f"Unsupported settings schema version: {version}.")
@@ -143,7 +166,7 @@ def decode_settings(payload: object) -> Settings:
         raise SettingsValidationError(
             "System-default selection must not retain a manual device ID."
         )
-    hotkey = _required_string(merged, "hotkey", max_length=64)
+    hotkey = _validated_hotkey(merged)
     auto_paste = _required_bool(merged, "auto_paste")
     autostart = _required_bool(merged, "autostart")
     max_seconds = _require_exact_int(
@@ -153,6 +176,10 @@ def decode_settings(payload: object) -> Settings:
         MAX_RECORDING_SECONDS,
     )
     launch_button = _required_bool(merged, "launch_floating_button")
+    button_x = _optional_position(merged, "floating_button_x")
+    button_y = _optional_position(merged, "floating_button_y")
+    if (button_x is None) != (button_y is None):
+        raise SettingsValidationError("Floating button coordinates must be both set or both null.")
     input_language = _optional_language(merged, "input_language")
     output_language = _optional_language(merged, "output_language")
     safe_formatting = _required_bool(merged, "safe_formatting")
@@ -167,6 +194,8 @@ def decode_settings(payload: object) -> Settings:
         autostart=autostart,
         max_recording_seconds=max_seconds,
         launch_floating_button=launch_button,
+        floating_button_x=button_x,
+        floating_button_y=button_y,
         input_language=input_language,
         output_language=output_language,
         safe_formatting=safe_formatting,
@@ -186,6 +215,8 @@ def encode_settings(settings: Settings) -> dict[str, object]:
         "autostart": settings.autostart,
         "max_recording_seconds": settings.max_recording_seconds,
         "launch_floating_button": settings.launch_floating_button,
+        "floating_button_x": settings.floating_button_x,
+        "floating_button_y": settings.floating_button_y,
         "input_language": settings.input_language.value if settings.input_language else None,
         "output_language": settings.output_language.value if settings.output_language else None,
         "safe_formatting": settings.safe_formatting,
@@ -274,6 +305,23 @@ def _required_string(values: Mapping[str, object], field: str, max_length: int) 
     value = values[field]
     if not isinstance(value, str) or not value.strip() or len(value) > max_length:
         raise SettingsValidationError(f"{field} must be a non-empty string.")
+    return value
+
+
+def _validated_hotkey(values: Mapping[str, object]) -> str:
+    value = _required_string(values, "hotkey", max_length=64)
+    try:
+        return parse_hotkey(value).canonical
+    except HotkeyValidationError as exc:
+        raise SettingsValidationError("hotkey must be a supported safe global hotkey.") from exc
+
+
+def _optional_position(values: Mapping[str, object], field: str) -> int | None:
+    value = values[field]
+    if value is None:
+        return None
+    if type(value) is not int or not -100_000 <= value <= 100_000:
+        raise SettingsValidationError(f"{field} must be an integer coordinate or null.")
     return value
 
 

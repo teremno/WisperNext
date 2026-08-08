@@ -1,12 +1,11 @@
-"""Temporary package entry point.
+"""Windows desktop entry point."""
 
-The coding agent must replace this during the first executable milestone.
-"""
+from wispernext.ui.qt_runtime import run_desktop_application
 
 
 def main() -> None:
-    """Run the temporary import-safe entry point."""
-    raise SystemExit("WisperNext implementation has not started yet.")
+    """Run the single-instance floating desktop application."""
+    raise SystemExit(run_desktop_application())
 
 
 if __name__ == "__main__":
