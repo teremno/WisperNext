@@ -5,6 +5,14 @@ import pytest
 from wispernext.audio.backend import SoundDeviceBackend
 
 
+def test_default_input_index_is_read_without_opening_a_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("wispernext.audio.backend.sounddevice.default.device", (5, 8))
+
+    assert SoundDeviceBackend().default_input_runtime_index() == 5
+
+
 def test_enumeration_reads_metadata_and_opens_zero_streams(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

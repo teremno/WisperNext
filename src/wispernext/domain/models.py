@@ -17,3 +17,10 @@ class RejectionReason(StrEnum):
     BUSY = "busy"
     ILLEGAL_TRANSITION = "illegal_transition"
     SHUTTING_DOWN = "shutting_down"
+
+
+class MicrophoneSelectionMode(StrEnum):
+    """Explicit policy for resolving the microphone used by a recording."""
+
+    SYSTEM_DEFAULT = "system_default"
+    MANUAL = "manual"

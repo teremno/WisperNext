@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from wispernext.domain import MicrophoneSelectionMode
 from wispernext.infrastructure.config import (
     CURRENT_SCHEMA_VERSION,
     JsonSettingsStore,
@@ -19,6 +20,7 @@ def test_settings_round_trip_preserves_typed_values(tmp_path: Path) -> None:
     path = tmp_path / "settings.json"
     store = JsonSettingsStore(path)
     expected = Settings(
+        microphone_selection_mode=MicrophoneSelectionMode.MANUAL,
         selected_microphone_id="endpoint-123",
         hotkey="Ctrl+F8",
         auto_paste=True,
@@ -52,6 +54,24 @@ def test_versionless_settings_are_migrated_with_current_defaults() -> None:
     assert migrated.hotkey == "F9"
     assert migrated.auto_paste
     assert migrated.autostart is False
+    assert migrated.microphone_selection_mode is MicrophoneSelectionMode.SYSTEM_DEFAULT
+
+
+def test_version_one_manual_microphone_is_migrated_without_losing_preference() -> None:
+    payload = encode_settings(
+        Settings(
+            microphone_selection_mode=MicrophoneSelectionMode.MANUAL,
+            selected_microphone_id="metadata:v1:abc",
+        )
+    )
+    payload["schema_version"] = 1
+    payload.pop("microphone_selection_mode")
+
+    migrated = decode_settings(payload)
+
+    assert migrated.schema_version == CURRENT_SCHEMA_VERSION
+    assert migrated.microphone_selection_mode is MicrophoneSelectionMode.MANUAL
+    assert migrated.selected_microphone_id == "metadata:v1:abc"
 
 
 @pytest.mark.parametrize(
@@ -68,6 +88,14 @@ def test_versionless_settings_are_migrated_with_current_defaults() -> None:
         {"max_recording_seconds": 1_801},
         {"input_language": "xx"},
         {"hotkey": ""},
+        {
+            **encode_settings(Settings()),
+            "microphone_selection_mode": MicrophoneSelectionMode.MANUAL.value,
+        },
+        {
+            **encode_settings(Settings()),
+            "selected_microphone_id": "metadata:v1:abc",
+        },
     ],
 )
 def test_invalid_settings_are_rejected(payload: object) -> None:

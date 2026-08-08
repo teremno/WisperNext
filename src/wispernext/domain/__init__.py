@@ -1,7 +1,7 @@
 """Platform-independent domain contracts for WisperNext."""
 
 from wispernext.domain.errors import AppError, ErrorCode
-from wispernext.domain.models import ApplicationIntent, RejectionReason
+from wispernext.domain.models import ApplicationIntent, MicrophoneSelectionMode, RejectionReason
 from wispernext.domain.state import (
     ALLOWED_TRANSITIONS,
     ApplicationState,
@@ -19,6 +19,7 @@ __all__ = [
     "ApplicationStateMachine",
     "ErrorCode",
     "IntentResult",
+    "MicrophoneSelectionMode",
     "RejectionReason",
     "StateSnapshot",
     "TransitionResult",

@@ -39,6 +39,9 @@ class FakeBackend:
     def enumerate_input_devices(self) -> tuple[InputDevice, ...]:
         return ()
 
+    def default_input_runtime_index(self) -> int | None:
+        return None
+
     def create_input_stream(
         self, *, runtime_index: int, sample_rate: int, callback: FrameCallback
     ) -> FakeStream:

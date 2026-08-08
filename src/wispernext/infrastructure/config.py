@@ -10,7 +10,9 @@ from tempfile import NamedTemporaryFile
 from typing import Final, cast
 from uuid import uuid4
 
-CURRENT_SCHEMA_VERSION: Final = 1
+from wispernext.domain import MicrophoneSelectionMode
+
+CURRENT_SCHEMA_VERSION: Final = 2
 MIN_RECORDING_SECONDS: Final = 5
 MAX_RECORDING_SECONDS: Final = 1_800
 
@@ -40,6 +42,7 @@ class Settings:
     """Validated non-secret application settings."""
 
     schema_version: int = CURRENT_SCHEMA_VERSION
+    microphone_selection_mode: MicrophoneSelectionMode = MicrophoneSelectionMode.SYSTEM_DEFAULT
     selected_microphone_id: str | None = None
     hotkey: str = "F8"
     auto_paste: bool = False
@@ -71,7 +74,8 @@ class SettingsStorageError(RuntimeError):
 
 
 _FIELDS: Final = frozenset(Settings.__dataclass_fields__)
-_VERSION_ZERO_FIELDS: Final = _FIELDS - {"schema_version"}
+_VERSION_ZERO_FIELDS: Final = _FIELDS - {"schema_version", "microphone_selection_mode"}
+_VERSION_ONE_FIELDS: Final = _FIELDS - {"microphone_selection_mode"}
 
 
 def decode_settings(payload: object) -> Settings:
@@ -91,7 +95,33 @@ def decode_settings(payload: object) -> Settings:
         unknown = set(values) - _VERSION_ZERO_FIELDS
         if unknown:
             raise SettingsValidationError(f"Unknown settings fields: {sorted(unknown)!r}.")
-        values = {"schema_version": CURRENT_SCHEMA_VERSION, **values}
+        selection_mode = (
+            MicrophoneSelectionMode.MANUAL.value
+            if values.get("selected_microphone_id") is not None
+            else MicrophoneSelectionMode.SYSTEM_DEFAULT.value
+        )
+        values = {
+            **values,
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "microphone_selection_mode": selection_mode,
+        }
+    elif version == 1:
+        unknown = set(values) - _VERSION_ONE_FIELDS
+        missing = _VERSION_ONE_FIELDS - set(values)
+        if unknown:
+            raise SettingsValidationError(f"Unknown settings fields: {sorted(unknown)!r}.")
+        if missing:
+            raise SettingsValidationError(f"Missing settings fields: {sorted(missing)!r}.")
+        selection_mode = (
+            MicrophoneSelectionMode.MANUAL.value
+            if values.get("selected_microphone_id") is not None
+            else MicrophoneSelectionMode.SYSTEM_DEFAULT.value
+        )
+        values = {
+            **values,
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "microphone_selection_mode": selection_mode,
+        }
     elif version != CURRENT_SCHEMA_VERSION:
         raise SettingsValidationError(f"Unsupported settings schema version: {version}.")
 
@@ -105,7 +135,14 @@ def decode_settings(payload: object) -> Settings:
     merged = {**defaults, **values}
 
     _require_exact_int(merged, "schema_version", CURRENT_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION)
+    selection_mode = _microphone_selection_mode(merged)
     selected_id = _optional_string(merged, "selected_microphone_id", max_length=512)
+    if selection_mode is MicrophoneSelectionMode.MANUAL and selected_id is None:
+        raise SettingsValidationError("Manual microphone selection requires a stable device ID.")
+    if selection_mode is MicrophoneSelectionMode.SYSTEM_DEFAULT and selected_id is not None:
+        raise SettingsValidationError(
+            "System-default selection must not retain a manual device ID."
+        )
     hotkey = _required_string(merged, "hotkey", max_length=64)
     auto_paste = _required_bool(merged, "auto_paste")
     autostart = _required_bool(merged, "autostart")
@@ -123,6 +160,7 @@ def decode_settings(payload: object) -> Settings:
     text_model = _required_string(merged, "text_model", max_length=128)
 
     return Settings(
+        microphone_selection_mode=selection_mode,
         selected_microphone_id=selected_id,
         hotkey=hotkey,
         auto_paste=auto_paste,
@@ -141,6 +179,7 @@ def encode_settings(settings: Settings) -> dict[str, object]:
     """Return a JSON-compatible settings object containing no secrets."""
     return {
         "schema_version": settings.schema_version,
+        "microphone_selection_mode": settings.microphone_selection_mode.value,
         "selected_microphone_id": settings.selected_microphone_id,
         "hotkey": settings.hotkey,
         "auto_paste": settings.auto_paste,
@@ -256,4 +295,16 @@ def _optional_language(values: Mapping[str, object], field: str) -> LanguageCode
     except ValueError as exc:
         raise SettingsValidationError(
             f"{field} must be a supported language code or null."
+        ) from exc
+
+
+def _microphone_selection_mode(values: Mapping[str, object]) -> MicrophoneSelectionMode:
+    value = values["microphone_selection_mode"]
+    if not isinstance(value, str):
+        raise SettingsValidationError("microphone_selection_mode must be a supported value.")
+    try:
+        return MicrophoneSelectionMode(value)
+    except ValueError as exc:
+        raise SettingsValidationError(
+            "microphone_selection_mode must be a supported value."
         ) from exc

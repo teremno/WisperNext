@@ -18,6 +18,7 @@ class InputStream(Protocol):
 
 class AudioBackend(Protocol):
     def enumerate_input_devices(self) -> tuple[InputDevice, ...]: ...
+    def default_input_runtime_index(self) -> int | None: ...
 
     def create_input_stream(
         self,
@@ -55,6 +56,12 @@ class SoundDeviceBackend:
                 )
             )
         return tuple(results)
+
+    def default_input_runtime_index(self) -> int | None:
+        """Return PortAudio's current default input index without changing it."""
+        defaults: Any = sounddevice.default.device
+        index = int(defaults[0])
+        return index if index >= 0 else None
 
     def create_input_stream(
         self,

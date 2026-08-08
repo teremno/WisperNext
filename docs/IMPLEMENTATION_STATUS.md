@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-Milestone 3 — Safe audio vertical slice
+Milestone 4 — Groq transcription
 
 ## Status
 
@@ -306,6 +306,80 @@ after the test. No broader USB/Bluetooth hardware reliability claim is made.
 
 Milestone 4 — Groq transcription. A real API smoke test will require explicit use of the
 user-controlled Groq credential; normal CI will use fakes and make no live cloud calls.
+
+## Milestone 4 plan
+
+1. Add an explicit microphone-selection mode: `system_default` by default or a manually
+   persisted stable device identity, with no physical-device fallback.
+2. Migrate settings schema v1 to v2 atomically and test both selection paths.
+3. Add the official Groq Python SDK behind a typed transcription port.
+4. Encode validated mono float32 audio to an in-memory 16 kHz PCM WAV; never upload weak,
+   empty, clipped, or too-short captures.
+5. Configure bounded connect/read/write/total timeouts and one SDK-managed retry for transient
+   connection, timeout, 408, 409, 429, and server failures only.
+6. Map provider failures to privacy-safe typed results without logging audio, keys, or text.
+7. Cover behavior with fakes/mocked SDK responses; normal CI must make zero Groq calls.
+8. Run a single user-authorized live transcription smoke test with the process-scoped key,
+   record only metrics/status (not dictated text), then complete, commit, and push.
+
+## Milestone 4 initial evidence
+
+- Date: 2026-08-08
+- `WISPER_GROQ_API_KEY` is configured in the current process environment and has the expected
+  `gsk_` shape. Its value was not displayed, logged, copied, or written to settings.
+- No Groq credential exists in User/Machine environment scope or in a Credential Manager
+  target containing `groq`. A normally launched installed app may therefore need persistent
+  secure-key setup later; the current development process can use the existing key.
+- Official Groq documentation currently lists `whisper-large-v3-turbo` as multilingual STT,
+  recommends 16 kHz mono preprocessing, and supports direct WAV uploads.
+
+## Milestone 4 completion
+
+- Date: 2026-08-08
+- Scope: system-default/manual microphone selection policy, settings schema v2 migration,
+  read-only microphone catalog, validated in-memory PCM16 WAV preparation, official Groq SDK
+  adapter, bounded timeouts and retry, privacy-safe typed failures, and lazy composition.
+- Architecture: `docs/adr/0005-groq-transcription-provider.md` records the Groq-only provider,
+  model, privacy, retry, timeout, and verification decisions.
+- The default-device smoke resolved Windows default to `Depstech webcam MIC`. Its 5.899-second
+  capture was correctly categorized `WEAK_SIGNAL` (`RMS 0.00050819`, peak `0.00854492`) and
+  caused zero Groq uploads.
+- The user had explicitly selected the Realtek WASAPI endpoint for the manual path. Its
+  6.0-second capture was `VALID_AUDIO` (`RMS 0.06466251`, peak `0.41552398`, clipping `0.0`).
+  One live Groq request succeeded and returned 71 transcript characters. Neither transcript
+  content nor API-key content was printed, logged, or persisted.
+
+### Automated commands and results
+
+```powershell
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy src
+python -m pytest -m "not hardware"
+python scripts/run_live_transcription_smoke.py --seconds 6
+python scripts/run_live_transcription_smoke.py --seconds 6 --microphone-id <stable-id>
+```
+
+- `ruff format --check`: passed.
+- `ruff check`: passed.
+- `mypy src`: passed with no issues in 25 source files.
+- `pytest -m "not hardware"`: 229 passed, 1 hardware test deselected.
+- Unit tests use fakes/mocked SDK objects and make zero cloud requests.
+
+### Residual risks and unverified assumptions
+
+- `WISPER_GROQ_API_KEY` exists only in the current process environment. A normal desktop launch
+  will not inherit it until a persistent Windows Credential Manager flow is implemented.
+- The synchronous Groq SDK call cannot be cancelled after dispatch; strict total/read/write/
+  connect timeouts bound it instead. Controller-level background execution belongs to the UI
+  integration milestone.
+- The current Windows default microphone is too quiet for reliable transcription. Wisper does
+  not change it; manual Realtek selection works and remains the safe choice for now.
+- Provider availability, rate limits, and model permissions remain external runtime conditions.
+
+## Milestone 4 next milestone
+
+Milestone 5 — Clipboard delivery with verification and conservative optional auto-paste.
 
 ## Agent update format
 

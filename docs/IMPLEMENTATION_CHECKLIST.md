@@ -27,10 +27,10 @@
 
 ## Groq
 
-- [ ] Groq is the only cloud provider.
-- [ ] Weak/empty audio is never uploaded.
-- [ ] API timeouts are bounded.
-- [ ] API key is not written to logs or plain settings.
+- [x] Groq is the only cloud provider.
+- [x] Weak/empty audio is never uploaded.
+- [x] API timeouts are bounded.
+- [x] API key is not written to logs or plain settings.
 - [ ] Punctuation mode preserves words and order as far as practical.
 - [ ] Translation mode uses configured output language.
 

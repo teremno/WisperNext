@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from enum import StrEnum
 
+from wispernext.domain import MicrophoneSelectionMode
+
 
 class ConnectionKind(StrEnum):
     INTERNAL = "internal"
@@ -98,6 +100,32 @@ def resolve_device(
     if len(matches) > 1:
         return DeviceResolution(ResolutionStatus.AMBIGUOUS)
     return DeviceResolution(ResolutionStatus.NOT_FOUND)
+
+
+def resolve_selection(
+    mode: MicrophoneSelectionMode,
+    selected_stable_id: str | None,
+    devices: tuple[InputDevice, ...],
+    default_runtime_index: int | None,
+) -> DeviceResolution:
+    """Resolve an explicit default/manual policy without physical fallback."""
+    if mode is MicrophoneSelectionMode.SYSTEM_DEFAULT:
+        matches = tuple(
+            device for device in devices if device.runtime_index == default_runtime_index
+        )
+        if len(matches) == 1:
+            return DeviceResolution(ResolutionStatus.RESOLVED, matches[0])
+        return DeviceResolution(
+            ResolutionStatus.AMBIGUOUS if len(matches) > 1 else ResolutionStatus.NOT_FOUND
+        )
+    if selected_stable_id is None:
+        return DeviceResolution(ResolutionStatus.NOT_FOUND)
+    matches = tuple(device for device in devices if device.stable_id == selected_stable_id)
+    if len(matches) == 1:
+        return DeviceResolution(ResolutionStatus.RESOLVED, matches[0])
+    return DeviceResolution(
+        ResolutionStatus.AMBIGUOUS if len(matches) > 1 else ResolutionStatus.NOT_FOUND
+    )
 
 
 def _normalize(value: str) -> str:
