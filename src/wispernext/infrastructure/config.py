@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from wispernext.domain import HotkeyValidationError, MicrophoneSelectionMode, parse_hotkey
 
-CURRENT_SCHEMA_VERSION: Final = 3
+CURRENT_SCHEMA_VERSION: Final = 4
 MIN_RECORDING_SECONDS: Final = 5
 MAX_RECORDING_SECONDS: Final = 1_800
 
@@ -55,7 +55,7 @@ class Settings:
     output_language: LanguageCode | None = None
     safe_formatting: bool = True
     transcription_model: str = "whisper-large-v3-turbo"
-    text_model: str = "llama-3.3-70b-versatile"
+    text_model: str = "openai/gpt-oss-120b"
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +84,7 @@ _VERSION_ZERO_FIELDS: Final = _FIELDS - {
 }
 _VERSION_ONE_FIELDS: Final = _FIELDS - {"microphone_selection_mode", *_POSITION_FIELDS}
 _VERSION_TWO_FIELDS: Final = _FIELDS - _POSITION_FIELDS
+_VERSION_THREE_FIELDS: Final = _FIELDS
 
 
 def decode_settings(payload: object) -> Settings:
@@ -144,6 +145,21 @@ def decode_settings(payload: object) -> Settings:
             "schema_version": CURRENT_SCHEMA_VERSION,
             "floating_button_x": None,
             "floating_button_y": None,
+        }
+    elif version == 3:
+        unknown = set(values) - _VERSION_THREE_FIELDS
+        missing = _VERSION_THREE_FIELDS - set(values)
+        if unknown:
+            raise SettingsValidationError(f"Unknown settings fields: {sorted(unknown)!r}.")
+        if missing:
+            raise SettingsValidationError(f"Missing settings fields: {sorted(missing)!r}.")
+        text_model = values.get("text_model")
+        values = {
+            **values,
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "text_model": (
+                "openai/gpt-oss-120b" if text_model == "llama-3.3-70b-versatile" else text_model
+            ),
         }
     elif version != CURRENT_SCHEMA_VERSION:
         raise SettingsValidationError(f"Unsupported settings schema version: {version}.")

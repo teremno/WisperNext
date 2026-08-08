@@ -9,13 +9,14 @@ from wispernext.application import (
     AutoPasteService,
     ClipboardDeliveryService,
     PastePort,
+    TextProcessingService,
     TranscriptionService,
 )
 from wispernext.audio.backend import SoundDeviceBackend
 from wispernext.audio.catalog import MicrophoneCatalogService
 from wispernext.audio.session import AudioSessionService
 from wispernext.domain import ApplicationStateMachine
-from wispernext.groq import GroqTranscriptionTransportFactory
+from wispernext.groq import GroqTextProcessingTransportFactory, GroqTranscriptionTransportFactory
 from wispernext.infrastructure.config import JsonSettingsStore
 from wispernext.infrastructure.paths import UserPaths
 from wispernext.infrastructure.secrets import (
@@ -38,6 +39,7 @@ class ApplicationServices:
     settings_store: JsonSettingsStore
     secret_provider: SecretProvider
     transcription: TranscriptionService
+    text_processing: TextProcessingService
     clipboard_delivery: ClipboardDeliveryService
     auto_paste: AutoPasteService
     focus_port: PastePort
@@ -70,6 +72,10 @@ def build_application_services(
         transcription=TranscriptionService(
             secret_provider,
             GroqTranscriptionTransportFactory(),
+        ),
+        text_processing=TextProcessingService(
+            secret_provider,
+            GroqTextProcessingTransportFactory(),
         ),
         clipboard_delivery=ClipboardDeliveryService(WindowsClipboard()),
         auto_paste=AutoPasteService(paste_adapter, wisper_process_id=os.getpid()),

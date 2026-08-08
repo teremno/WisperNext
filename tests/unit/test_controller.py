@@ -5,8 +5,11 @@ from wispernext.application import (
     ClipboardDeliveryStatus,
     DictationController,
     FocusContext,
+    TextProcessingFailureCode,
+    TextProcessingResult,
     TranscriptionResult,
 )
+from wispernext.application.delivery import AutoPasteResult, AutoPasteStatus
 from wispernext.audio.devices import (
     ConnectionKind,
     DeviceResolution,
@@ -15,7 +18,7 @@ from wispernext.audio.devices import (
 )
 from wispernext.audio.signal import CapturedAudio, validate_audio
 from wispernext.domain import ApplicationState, ApplicationStateMachine
-from wispernext.infrastructure.config import Settings, SettingsLoadResult
+from wispernext.infrastructure.config import LanguageCode, Settings, SettingsLoadResult
 
 
 class ImmediateScheduler:
@@ -118,17 +121,33 @@ class FakePastePort:
 
 
 class FakeAutoPaste:
-    def __init__(self) -> None:
+    def __init__(self, status: AutoPasteStatus = AutoPasteStatus.PASTED) -> None:
+        self.call_count = 0
+        self.status = status
+
+    def try_paste(self, **_kwargs: object) -> AutoPasteResult:
+        self.call_count += 1
+        return AutoPasteResult(self.status)
+
+
+class FakeTextProcessing:
+    def __init__(self, result: TextProcessingResult | None = None) -> None:
+        self.result = result
         self.call_count = 0
 
-    def try_paste(self, **_kwargs: object) -> None:
+    def process(self, transcript: str, **_kwargs: object) -> TextProcessingResult:
         self.call_count += 1
+        return self.result or TextProcessingResult(transcript, False, False)
 
 
 def build_controller(
     *,
     scheduler: ImmediateScheduler | QueuedScheduler,
     audio: FakeAudioSession | None = None,
+    settings: Settings | None = None,
+    text_processing: FakeTextProcessing | None = None,
+    auto_paste: FakeAutoPaste | None = None,
+    notices: list[str] | None = None,
 ) -> tuple[
     DictationController,
     ApplicationStateMachine,
@@ -142,20 +161,22 @@ def build_controller(
     audio_session = audio or FakeAudioSession()
     transcription = FakeTranscription()
     clipboard = FakeClipboardDelivery()
-    settings_store = FakeSettingsStore(Settings())
+    initial_settings = settings or Settings()
+    settings_store = FakeSettingsStore(initial_settings)
     states: list[ApplicationState] = []
     controller = DictationController(
         state_machine=machine,
         microphone_catalog=FakeCatalog(),  # type: ignore[arg-type]
         audio_session=audio_session,  # type: ignore[arg-type]
         transcription=transcription,  # type: ignore[arg-type]
+        text_processing=text_processing or FakeTextProcessing(),  # type: ignore[arg-type]
         clipboard_delivery=clipboard,  # type: ignore[arg-type]
-        auto_paste=FakeAutoPaste(),  # type: ignore[arg-type]
+        auto_paste=auto_paste or FakeAutoPaste(),  # type: ignore[arg-type]
         focus_port=FakePastePort(),
         settings_store=settings_store,  # type: ignore[arg-type]
-        initial_settings=Settings(),
+        initial_settings=initial_settings,
         state_listener=lambda snapshot: states.append(snapshot.state),
-        notice_listener=lambda _message: None,
+        notice_listener=(notices if notices is not None else []).append,
         ui_dispatcher=lambda callback: callback(),
         scheduler=scheduler,
     )
@@ -191,6 +212,7 @@ def test_complete_toggle_workflow_records_transcribes_delivers_and_returns_idle(
         ApplicationState.STOPPING_AUDIO,
         ApplicationState.VALIDATING_AUDIO,
         ApplicationState.TRANSCRIBING,
+        ApplicationState.FORMATTING_OR_TRANSLATING,
         ApplicationState.DELIVERING_TEXT,
         ApplicationState.IDLE,
     ]
@@ -223,6 +245,68 @@ def test_invalid_audio_stops_before_groq_and_enters_recoverable_error() -> None:
     assert machine.snapshot().state is ApplicationState.RECOVERABLE_ERROR
     assert transcription.call_count == 0
     assert clipboard.texts == []
+
+
+def test_translated_text_is_delivered_after_processing_state() -> None:
+    processor = FakeTextProcessing(TextProcessingResult("Hello.", True, False))
+    controller, machine, _audio, _transcription, clipboard, *_rest = build_controller(
+        scheduler=ImmediateScheduler(),
+        settings=Settings(
+            input_language=LanguageCode.UKRAINIAN,
+            output_language=LanguageCode.ENGLISH,
+        ),
+        text_processing=processor,
+    )
+    controller.start()
+
+    controller.toggle_recording()
+    controller.toggle_recording()
+
+    assert machine.snapshot().state is ApplicationState.IDLE
+    assert processor.call_count == 1
+    assert clipboard.texts == ["Hello."]
+
+
+def test_auto_paste_rejection_surfaces_notice_after_clipboard_delivery() -> None:
+    notices: list[str] = []
+    controller, machine, _audio, _transcription, clipboard, *_rest = build_controller(
+        scheduler=ImmediateScheduler(),
+        settings=Settings(auto_paste=True),
+        auto_paste=FakeAutoPaste(AutoPasteStatus.INPUT_REJECTED),
+        notices=notices,
+    )
+    controller.start()
+
+    controller.toggle_recording()
+    controller.toggle_recording()
+
+    assert machine.snapshot().state is ApplicationState.IDLE
+    assert clipboard.texts == ["recognized"]
+    assert any("Windows" in notice for notice in notices)
+
+
+def test_processing_failure_delivers_raw_transcript_and_surfaces_fallback() -> None:
+    notices: list[str] = []
+    processor = FakeTextProcessing(
+        TextProcessingResult(
+            "recognized",
+            False,
+            True,
+            TextProcessingFailureCode.TIMEOUT,
+        )
+    )
+    controller, _machine, _audio, _transcription, clipboard, *_rest = build_controller(
+        scheduler=ImmediateScheduler(),
+        text_processing=processor,
+        notices=notices,
+    )
+    controller.start()
+
+    controller.toggle_recording()
+    controller.toggle_recording()
+
+    assert clipboard.texts == ["recognized"]
+    assert any("початковий текст" in notice for notice in notices)
 
 
 def test_button_position_is_saved_on_worker_without_changing_domain_state() -> None:

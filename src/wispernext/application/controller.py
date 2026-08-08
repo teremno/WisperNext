@@ -9,10 +9,12 @@ from typing import Protocol
 
 from wispernext.application.delivery import (
     AutoPasteService,
+    AutoPasteStatus,
     ClipboardDeliveryService,
     FocusContext,
     PastePort,
 )
+from wispernext.application.text_processing import TextProcessingService, processing_mode
 from wispernext.application.transcription import TranscriptionFailureCode, TranscriptionService
 from wispernext.audio.catalog import MicrophoneCatalogService
 from wispernext.audio.devices import InputDevice, ResolutionStatus
@@ -61,6 +63,7 @@ class DictationController:
         microphone_catalog: MicrophoneCatalogService,
         audio_session: AudioSessionService,
         transcription: TranscriptionService,
+        text_processing: TextProcessingService,
         clipboard_delivery: ClipboardDeliveryService,
         auto_paste: AutoPasteService,
         focus_port: PastePort,
@@ -75,6 +78,7 @@ class DictationController:
         self._microphone_catalog = microphone_catalog
         self._audio_session = audio_session
         self._transcription = transcription
+        self._text_processing = text_processing
         self._clipboard_delivery = clipboard_delivery
         self._auto_paste = auto_paste
         self._focus_port = focus_port
@@ -227,8 +231,29 @@ class DictationController:
                 self._fail(_transcription_error(transcription.failure))
                 return
 
+            final_text = transcription.text
+            mode = processing_mode(
+                self._settings.input_language,
+                self._settings.output_language,
+                self._settings.safe_formatting,
+            )
+            if mode is not None:
+                self._transition(ApplicationState.FORMATTING_OR_TRANSLATING)
+                processed = self._text_processing.process(
+                    transcription.text,
+                    model=self._settings.text_model,
+                    input_language=self._settings.input_language,
+                    output_language=self._settings.output_language,
+                    safe_formatting=self._settings.safe_formatting,
+                )
+                final_text = processed.text
+                if processed.used_fallback:
+                    self._notice(
+                        "Форматування або переклад не вдалися. Використано початковий текст."
+                    )
+
             self._transition(ApplicationState.DELIVERING_TEXT)
-            delivery = self._clipboard_delivery.deliver(transcription.text)
+            delivery = self._clipboard_delivery.deliver(final_text)
             if not delivery.verified:
                 self._fail(
                     AppError(ErrorCode.DELIVERY_FAILED, "Не вдалося перевірити буфер обміну.", True)
@@ -236,12 +261,14 @@ class DictationController:
                 return
 
             self._transition(ApplicationState.IDLE)
-            self._auto_paste.try_paste(
+            paste_result = self._auto_paste.try_paste(
                 enabled=self._settings.auto_paste,
                 clipboard_delivery=delivery,
                 recording_context=self._recording_context,
                 application_state=ApplicationState.IDLE,
             )
+            if self._settings.auto_paste and not paste_result.pasted:
+                self._notice(_auto_paste_notice(paste_result.status))
         except AudioSessionError:
             self._fail(AppError(ErrorCode.STREAM_ERROR, "Не вдалося завершити запис.", True))
         except Exception:
@@ -270,6 +297,9 @@ class DictationController:
         snapshot = self._state_machine.snapshot()
         self._ui_dispatcher(lambda: self._state_listener(snapshot))
 
+    def _notice(self, message: str) -> None:
+        self._ui_dispatcher(lambda: self._notice_listener(message))
+
 
 def _audio_error(category: AudioCategory) -> AppError:
     mapping = {
@@ -294,3 +324,13 @@ def _transcription_error(failure: TranscriptionFailureCode | None) -> AppError:
     }:
         return AppError(ErrorCode.PERMISSION_DENIED, "Groq відхилив API-ключ.", True)
     return AppError(ErrorCode.PROVIDER_UNAVAILABLE, "Groq зараз недоступний.", True)
+
+
+def _auto_paste_notice(status: AutoPasteStatus) -> str:
+    if status is AutoPasteStatus.TARGET_CHANGED:
+        return "Текст у буфері: активне поле змінилося під час обробки."
+    if status is AutoPasteStatus.WISPER_HAS_FOCUS:
+        return "Текст у буфері: активним стало вікно WisperNext."
+    if status is AutoPasteStatus.INPUT_REJECTED:
+        return "Текст у буфері: Windows відхилив автоматичне вставлення."
+    return "Текст у буфері: цільове поле для вставлення недоступне."

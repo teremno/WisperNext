@@ -93,6 +93,7 @@ def run_desktop_application(
         microphone_catalog=services.microphone_catalog,
         audio_session=services.audio_session,
         transcription=services.transcription,
+        text_processing=services.text_processing,
         clipboard_delivery=services.clipboard_delivery,
         auto_paste=services.auto_paste,
         focus_port=services.focus_port,

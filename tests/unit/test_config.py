@@ -91,6 +91,17 @@ def test_version_two_settings_migrate_with_unset_button_position() -> None:
     assert migrated.floating_button_y is None
 
 
+def test_version_three_settings_migrate_deprecated_default_text_model() -> None:
+    payload = encode_settings(Settings())
+    payload["schema_version"] = 3
+    payload["text_model"] = "llama-3.3-70b-versatile"
+
+    migrated = decode_settings(payload)
+
+    assert migrated.schema_version == CURRENT_SCHEMA_VERSION
+    assert migrated.text_model == "openai/gpt-oss-120b"
+
+
 @pytest.mark.parametrize(
     "payload",
     [

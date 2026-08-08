@@ -6,8 +6,8 @@ from PySide6.QtWidgets import QApplication
 
 from wispernext.audio.devices import ConnectionKind, InputDevice
 from wispernext.domain import MicrophoneSelectionMode
-from wispernext.infrastructure.config import Settings
-from wispernext.ui.settings_dialog import SettingsDialog
+from wispernext.infrastructure.config import LanguageCode, Settings
+from wispernext.ui.settings_dialog import SettingsDialog, language_options
 
 DEVICE = InputDevice(2, "stable-usb", "USB Mic", "WASAPI", 48_000, 1, ConnectionKind.USB)
 
@@ -53,3 +53,21 @@ def test_dialog_defaults_to_system_microphone_and_refresh_is_explicit() -> None:
     assert dialog.draft_settings().microphone_selection_mode is (
         MicrophoneSelectionMode.SYSTEM_DEFAULT
     )
+
+
+def test_dialog_exposes_all_languages_and_preserves_separate_choices() -> None:
+    application()
+    original = Settings(
+        input_language=LanguageCode.ENGLISH,
+        output_language=LanguageCode.UKRAINIAN,
+        safe_formatting=False,
+    )
+    dialog = SettingsDialog(original, refresh_callback=lambda: None, save_callback=lambda _: None)
+
+    draft = dialog.draft_settings()
+
+    assert {language for _label, language in language_options()} == set(LanguageCode)
+    assert len(language_options()) == 15
+    assert draft.input_language is LanguageCode.ENGLISH
+    assert draft.output_language is LanguageCode.UKRAINIAN
+    assert not draft.safe_formatting

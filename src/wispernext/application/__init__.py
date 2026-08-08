@@ -12,6 +12,17 @@ from wispernext.application.delivery import (
     FocusContext,
     PastePort,
 )
+from wispernext.application.text_processing import (
+    ProviderTextResult,
+    TextProcessingFailureCode,
+    TextProcessingMode,
+    TextProcessingProviderError,
+    TextProcessingResult,
+    TextProcessingService,
+    TextProcessingTransport,
+    TextProcessingTransportFactory,
+    processing_mode,
+)
 from wispernext.application.transcription import (
     ProviderFailureCode,
     TranscriptionFailureCode,
@@ -34,11 +45,20 @@ __all__ = [
     "FocusContext",
     "PastePort",
     "ProviderFailureCode",
+    "ProviderTextResult",
     "TaskScheduler",
+    "TextProcessingFailureCode",
+    "TextProcessingMode",
+    "TextProcessingProviderError",
+    "TextProcessingResult",
+    "TextProcessingService",
+    "TextProcessingTransport",
+    "TextProcessingTransportFactory",
     "TranscriptionFailureCode",
     "TranscriptionProviderError",
     "TranscriptionResult",
     "TranscriptionService",
     "TranscriptionTransport",
     "TranscriptionTransportFactory",
+    "processing_mode",
 ]

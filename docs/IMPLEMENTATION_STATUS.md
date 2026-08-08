@@ -2,11 +2,93 @@
 
 ## Current milestone
 
-Milestone 6 — Floating button, hotkeys, and single instance
+Milestone 7 — Groq formatting and multilingual output
 
 ## Status
 
-In progress.
+Complete.
+
+## Milestone 7 plan
+
+1. Add a bounded Groq text-processing adapter using a current multilingual model and structured
+   output, with the API key resolved only through the existing secret provider.
+2. Implement conservative formatting/translation policy, prompt isolation, fixed output caps,
+   typed provider failures, and final fallback validation that preserves the raw transcript.
+3. Expose Auto plus all 15 supported input languages, Same-as-input plus all 15 output languages,
+   and safe formatting in the settings UI.
+4. Integrate `FORMATTING_OR_TRANSLATING` into the controller without blocking the Qt thread.
+5. Fix and regression-test the real Windows auto-paste ABI failure found during Milestone 7 intake.
+6. Run unit, integration, real Windows delivery, and opt-in Groq checks; document evidence and risks.
+7. Commit, push, and verify CI.
+
+## Milestone 7 completion
+
+- Date: 2026-08-08
+- Scope: separate Auto/fixed input language and Same-as-input/fixed output language controls;
+  all 15 specified languages; conservative punctuation/paragraph formatting; cross-language
+  translation; schema-bound Groq output; final safety validation; raw-transcript fallback; and
+  controller integration through `FORMATTING_OR_TRANSLATING`.
+- Current-provider validation: Groq documents `whisper-large-v3-turbo` as multilingual with 99+
+  languages and recommends it for multilingual price/performance. Groq also documents
+  `openai/gpt-oss-120b` as multilingual across 81+ languages. The previous default
+  `llama-3.3-70b-versatile` is scheduled for shutdown on 2026-08-16, so settings schema v4 migrates
+  only that previous default to `openai/gpt-oss-120b`.
+- Official evidence:
+  - https://console.groq.com/docs/speech-to-text
+  - https://console.groq.com/docs/model/whisper-large-v3-turbo
+  - https://console.groq.com/docs/model/openai/gpt-oss-120b
+  - https://console.groq.com/docs/deprecations
+- Safety: transcript content is JSON-escaped and treated as untrusted data; the provider receives
+  no tools; structured output is strict; temperature is 0.1; reasoning effort is low; output is
+  capped at 2,048 tokens; timeout is bounded; retry count is one; and no credential or dictated
+  text is logged. Empty, wrapped, meta-commentary, wrong-language, changed-number, excessive-length,
+  and excessive same-language rewrite results fall back to the raw transcript with a visible notice.
+- UI: the settings dialog now exposes all 15 languages independently for input and output, plus
+  safe formatting. Offscreen layout QA confirmed the expanded dialog remains readable without
+  clipped groups or controls.
+
+### Verification evidence
+
+```powershell
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy src
+python -m pytest -m "not hardware"
+python scripts/run_live_text_processing_smoke.py
+python scripts/run_auto_paste_smoke.py
+```
+
+- Ruff and strict mypy passed.
+- `pytest -m "not hardware"`: 314 passed, 1 hardware test deselected.
+- One live formatting request and live translation into every one of the 15 advertised output
+  languages passed through the configured Groq credential with no fallback or validation failure.
+- Ukrainian-to-English and English-to-Ukrainian were included explicitly in the live matrix.
+- No microphone was opened by the text-processing or auto-paste smoke tests.
+
+### Auto-paste defect fixed during intake
+
+- The user's persisted setting was confirmed as `auto_paste = true`; clipboard delivery was already
+  successful, so the failure was in the Win32 input adapter rather than configuration.
+- The real disposable-field smoke test reproduced `INPUT_REJECTED`.
+- Root cause: the local `INPUT` union omitted `MOUSEINPUT`, making `ctypes.sizeof(INPUT)` 32 bytes on
+  64-bit Windows instead of the required 40-byte Win32 ABI. `SendInput` therefore rejected all four
+  key events.
+- The adapter now defines the complete union and a regression test asserts 40 bytes on x64 (28 on
+  x86). The repeated real test returned `PASTED`, and the disposable field received the exact
+  sentinel while the user's previous clipboard text was restored.
+- Auto-paste refusal statuses now surface a privacy-safe visible notice instead of failing silently.
+- The old desktop process was replaced after exact executable-path validation. The updated desktop
+  composition started and closed cleanly, the real paste smoke passed again, and the updated app was
+  then launched through the existing desktop shortcut and left running.
+
+### Residual risks
+
+- Windows integrity isolation can still reject paste into an elevated target from a non-elevated
+  WisperNext process; the text remains verified in the clipboard and the UI reports the refusal.
+- Provider language is validated from schema-bound output plus requested-code matching. The live
+  15-language matrix passed, but model behavior can change and remains covered by the fallback.
+- A dispatched Groq SDK request is timeout-bounded but cannot be cancelled after dispatch in the
+  current synchronous SDK integration.
 
 ## User-requested launch and settings bridge
 

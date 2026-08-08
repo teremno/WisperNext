@@ -22,7 +22,30 @@ from PySide6.QtWidgets import (
 
 from wispernext.audio.devices import InputDevice
 from wispernext.domain import MicrophoneSelectionMode
-from wispernext.infrastructure.config import Settings
+from wispernext.infrastructure.config import LanguageCode, Settings
+
+_LANGUAGE_OPTIONS = (
+    ("Англійська", LanguageCode.ENGLISH),
+    ("Українська", LanguageCode.UKRAINIAN),
+    ("Німецька", LanguageCode.GERMAN),
+    ("Французька", LanguageCode.FRENCH),
+    ("Іспанська", LanguageCode.SPANISH),
+    ("Італійська", LanguageCode.ITALIAN),
+    ("Португальська", LanguageCode.PORTUGUESE),
+    ("Польська", LanguageCode.POLISH),
+    ("Нідерландська", LanguageCode.DUTCH),
+    ("Турецька", LanguageCode.TURKISH),
+    ("Арабська", LanguageCode.ARABIC),
+    ("Гінді", LanguageCode.HINDI),
+    ("Китайська (спрощена)", LanguageCode.CHINESE_SIMPLIFIED),
+    ("Японська", LanguageCode.JAPANESE),
+    ("Корейська", LanguageCode.KOREAN),
+)
+
+
+def language_options() -> tuple[tuple[str, LanguageCode], ...]:
+    """Return the advertised language choices in stable UI order."""
+    return _LANGUAGE_OPTIONS
 
 
 class SettingsDialog(QDialog):
@@ -68,6 +91,25 @@ class SettingsDialog(QDialog):
         audio_layout = QFormLayout(audio_group)
         audio_layout.addRow("Джерело:", microphone_row)
 
+        self._input_language = QComboBox()
+        self._input_language.setAccessibleName("Мова мовлення")
+        self._input_language.addItem("Визначати автоматично", None)
+        self._output_language = QComboBox()
+        self._output_language.setAccessibleName("Мова готового тексту")
+        self._output_language.addItem("Така сама, як мова мовлення", None)
+        for label, language in _LANGUAGE_OPTIONS:
+            self._input_language.addItem(label, language.value)
+            self._output_language.addItem(label, language.value)
+        _select_language(self._input_language, settings.input_language)
+        _select_language(self._output_language, settings.output_language)
+        self._safe_formatting = QCheckBox("Додавати безпечну пунктуацію та абзаци")
+        self._safe_formatting.setChecked(settings.safe_formatting)
+        language_group = QGroupBox("МОВА І ТЕКСТ")
+        language_layout = QFormLayout(language_group)
+        language_layout.addRow("Я говорю:", self._input_language)
+        language_layout.addRow("Готовий текст:", self._output_language)
+        language_layout.addRow(self._safe_formatting)
+
         self._auto_paste = QCheckBox("Автоматично вставляти розпізнаний текст")
         self._auto_paste.setChecked(settings.auto_paste)
         self._launch_button = QCheckBox("Показувати плаваючу кнопку після запуску")
@@ -102,6 +144,7 @@ class SettingsDialog(QDialog):
         layout.addWidget(title)
         layout.addWidget(subtitle)
         layout.addWidget(audio_group)
+        layout.addWidget(language_group)
         layout.addWidget(behavior_group)
         layout.addWidget(self._status)
         layout.addWidget(self._buttons)
@@ -160,6 +203,9 @@ class SettingsDialog(QDialog):
             self._base_settings,
             microphone_selection_mode=mode,
             selected_microphone_id=selected_id,
+            input_language=_selected_language(self._input_language),
+            output_language=_selected_language(self._output_language),
+            safe_formatting=self._safe_formatting.isChecked(),
             auto_paste=self._auto_paste.isChecked(),
             max_recording_seconds=self._max_seconds.value(),
             launch_floating_button=self._launch_button.isChecked(),
@@ -174,6 +220,19 @@ class SettingsDialog(QDialog):
         self._buttons.setEnabled(False)
         self._status.setText("Збереження…")
         self._save_callback(self.draft_settings())
+
+
+def _select_language(combo: QComboBox, language: LanguageCode | None) -> None:
+    if language is None:
+        combo.setCurrentIndex(0)
+        return
+    index = combo.findData(language.value)
+    combo.setCurrentIndex(max(index, 0))
+
+
+def _selected_language(combo: QComboBox) -> LanguageCode | None:
+    value = combo.currentData()
+    return LanguageCode(value) if isinstance(value, str) else None
 
 
 _STYLE = """

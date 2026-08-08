@@ -32,26 +32,26 @@
 - [x] Weak/empty audio is never uploaded.
 - [x] API timeouts are bounded.
 - [x] API key is not written to logs or plain settings.
-- [ ] Punctuation mode preserves words and order as far as practical.
-- [ ] Translation mode uses configured output language.
+- [x] Punctuation mode preserves words and order as far as practical.
+- [x] Translation mode uses configured output language.
 
 ## Languages
 
-- [ ] English
-- [ ] Spanish
-- [ ] French
-- [ ] German
-- [ ] Italian
-- [ ] Portuguese
-- [ ] Ukrainian
-- [ ] Polish
-- [ ] Dutch
-- [ ] Turkish
-- [ ] Arabic
-- [ ] Hindi
-- [ ] Japanese
-- [ ] Korean
-- [ ] Chinese (Simplified)
+- [x] English
+- [x] Spanish
+- [x] French
+- [x] German
+- [x] Italian
+- [x] Portuguese
+- [x] Ukrainian
+- [x] Polish
+- [x] Dutch
+- [x] Turkish
+- [x] Arabic
+- [x] Hindi
+- [x] Japanese
+- [x] Korean
+- [x] Chinese (Simplified)
 
 ## Delivery
 

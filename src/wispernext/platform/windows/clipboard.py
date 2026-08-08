@@ -19,12 +19,35 @@ class _KEYBDINPUT(ctypes.Structure):
         ("wScan", wintypes.WORD),
         ("dwFlags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG)),
+        ("dwExtraInfo", ctypes.c_size_t),
+    ]
+
+
+class _MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.c_size_t),
+    ]
+
+
+class _HARDWAREINPUT(ctypes.Structure):
+    _fields_ = [
+        ("uMsg", wintypes.DWORD),
+        ("wParamL", wintypes.WORD),
+        ("wParamH", wintypes.WORD),
     ]
 
 
 class _INPUTUNION(ctypes.Union):
-    _fields_ = [("ki", _KEYBDINPUT)]  # noqa: RUF012
+    _fields_ = [  # noqa: RUF012
+        ("mi", _MOUSEINPUT),
+        ("ki", _KEYBDINPUT),
+        ("hi", _HARDWAREINPUT),
+    ]
 
 
 class _INPUT(ctypes.Structure):
@@ -164,7 +187,7 @@ class WindowsPasteAdapter:
                     wScan=0,
                     dwFlags=flags,
                     time=0,
-                    dwExtraInfo=None,
+                    dwExtraInfo=0,
                 )
             ),
         )
