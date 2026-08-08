@@ -9,13 +9,13 @@
 
 ## Audio safety
 
-- [ ] Device enumeration opens zero streams.
-- [ ] One start opens one selected endpoint.
-- [ ] One stop closes it exactly once.
-- [ ] Cleanup is idempotent.
-- [ ] No automatic physical microphone fallback.
-- [ ] No Windows audio mutation exists.
-- [ ] Built-in, USB, and Bluetooth devices are represented.
+- [x] Device enumeration opens zero streams.
+- [x] One start opens one selected endpoint.
+- [x] One stop closes it exactly once.
+- [x] Cleanup is idempotent.
+- [x] No automatic physical microphone fallback.
+- [x] No Windows audio mutation exists.
+- [x] Built-in, USB, and Bluetooth devices are represented.
 
 ## Accessibility and input
 

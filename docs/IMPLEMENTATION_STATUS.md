@@ -6,7 +6,7 @@ Milestone 3 — Safe audio vertical slice
 
 ## Status
 
-In progress.
+Complete.
 
 ## Milestone 0 plan
 
@@ -250,9 +250,9 @@ python -c "from wispernext.audio.backend import SoundDeviceBackend; ..."
 
 ### Hardware gate
 
-No recording stream has been opened. Milestone 3 remains incomplete until the user explicitly
-selects a microphone, authorizes a short live capture, and completes the required repeat and
-independent-recorder checks. No hardware reliability claim is made.
+Real capture and the required 100-cycle test pass on the explicitly selected Realtek WASAPI
+endpoint. The user then verified that Windows Sound Recorder could record and play back speech
+after the test. No broader USB/Bluetooth hardware reliability claim is made.
 
 ### Hardware attempt — 2026-08-08
 
@@ -268,8 +268,44 @@ independent-recorder checks. No hardware reliability claim is made.
   did not automatically reopen the selected endpoint.
 - A metadata-only follow-up still found the same endpoint: Windows WASAPI, 48 kHz, two input
   channels. This does not prove that the endpoint can be opened.
-- Required next action: explicit user authorization for a controlled retry/format diagnostic
-  on the same selected endpoint, or explicit selection of a different physical microphone.
+- This failure was produced by sandboxed device access, not by an unsupported mono/stereo
+  format. It remains valid recoverable-error evidence.
+
+### Successful hardware retry — 2026-08-08
+
+- `sounddevice.check_input_settings` confirmed that the selected Realtek WASAPI endpoint
+  supports mono and stereo float32 capture at 48 kHz.
+- An explicitly approved unsandboxed 2-second capture succeeded on the same stable identity
+  at runtime index `19`: 96,000 frames, RMS `0.00018477`, peak `0.00605236`, clipping ratio
+  `0.0`, and no callback status flags.
+- Validation returned `WEAK_SIGNAL` because almost no speech was present; this is a signal
+  result, not a stream failure. Audio was not saved.
+- The opt-in hardware test completed 100 sequential open/capture/stop/close cycles on the
+  same endpoint: `1 passed` in 51.91 seconds. Each capture produced frames; no fallback device
+  was opened.
+- No Python, WisperNext, or PortAudio test process remained after completion.
+- The only test warning concerned denied creation of `.pytest_cache`; it did not affect audio
+  capture or the test result.
+- The user confirmed that Windows Sound Recorder successfully recorded and played back speech
+  after the 100-cycle test.
+
+### Milestone 3 completion
+
+- Date: 2026-08-08
+- Milestone commit: the `test: verify safe Windows audio lifecycle` commit containing this
+  final evidence.
+- Exit condition satisfied for the selected built-in Realtek microphone: 100 sequential
+  recordings completed without preventing subsequent recording in an independent application.
+- Automated fake-backend contracts and the real hardware result support the single-owner,
+  exact-device, bounded-capture, idempotent-cleanup behavior.
+- Residual hardware scope: USB and Bluetooth capture, disconnect/reconnect, suspend/resume,
+  and other required matrix scenarios remain explicitly unverified until later reliability
+  milestones. They are not claimed as working.
+
+## Milestone 3 next milestone
+
+Milestone 4 — Groq transcription. A real API smoke test will require explicit use of the
+user-controlled Groq credential; normal CI will use fakes and make no live cloud calls.
 
 ## Agent update format
 
