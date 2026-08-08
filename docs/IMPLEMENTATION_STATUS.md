@@ -254,6 +254,23 @@ No recording stream has been opened. Milestone 3 remains incomplete until the us
 selects a microphone, authorizes a short live capture, and completes the required repeat and
 independent-recorder checks. No hardware reliability claim is made.
 
+### Hardware attempt — 2026-08-08
+
+- User explicitly selected the Realtek WASAPI microphone with stable identity
+  `metadata:v1:a0c94924e767bb9580da02aa` and authorized one 1-second capture.
+- Fresh resolution found exactly one matching endpoint at runtime index `19`; the earlier
+  metadata inventory had placed the same stable identity at index `12`, confirming that the
+  persisted identity survives a runtime-index change.
+- `sounddevice.RawInputStream` failed during construction with PortAudio error
+  `Invalid device` (`PaErrorCode -9996`). No capture stream was returned, no audio frames were
+  collected, and no Windows audio settings were changed.
+- The service returned a recoverable `AudioSessionError`, did not try another endpoint, and
+  did not automatically reopen the selected endpoint.
+- A metadata-only follow-up still found the same endpoint: Windows WASAPI, 48 kHz, two input
+  channels. This does not prove that the endpoint can be opened.
+- Required next action: explicit user authorization for a controlled retry/format diagnostic
+  on the same selected endpoint, or explicit selection of a different physical microphone.
+
 ## Agent update format
 
 For every milestone, replace or extend this file with:
