@@ -2,11 +2,78 @@
 
 ## Current milestone
 
-Milestone 4 — Groq transcription
+Milestone 5 — Clipboard delivery
 
 ## Status
 
 Complete.
+
+## Milestone 5 plan
+
+1. Add a typed clipboard port and verified delivery service with bounded retries.
+2. Preserve and restore the previous Unicode text when delivery fails after mutation.
+3. Add pure conservative auto-paste policy based on setting, verified clipboard, application
+   state, exact foreground context, and non-Wisper ownership.
+4. Add a bounded Windows adapter that sends one `Ctrl+V` only after rechecking the expected
+   foreground window; never force focus or retry input.
+5. Cover behavior with deterministic fakes in normal CI.
+6. Run an opt-in Windows clipboard smoke test that restores the original clipboard text.
+7. Document evidence and residual risks, then commit, push, and verify CI.
+
+## Milestone 5 completion
+
+- Date: 2026-08-08
+- Scope: typed verified clipboard delivery, exact read-back, three-attempt bounded retry policy,
+  previous Unicode-text restoration, conservative auto-paste decision logic, foreground context,
+  and Win32 clipboard/`SendInput` adapters.
+- Architecture: `docs/adr/0006-focus-context-and-auto-paste.md` records the exact-context and
+  one-attempt policy. Wisper never calls `SetForegroundWindow`, simulates clicks, searches for
+  another target, or retries paste input.
+- Composition remains side-effect-free: Win32 adapters are constructed at bootstrap but do not
+  access the clipboard or foreground window until explicitly invoked.
+
+### Automated commands and results
+
+```powershell
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy src
+python -m pytest -m "not hardware"
+python scripts/run_clipboard_smoke.py
+```
+
+- `ruff format --check`: passed.
+- `ruff check`: passed.
+- `mypy src`: passed with no issues in 28 source files.
+- `pytest -m "not hardware"`: 246 passed, 1 hardware test deselected.
+- Contract tests prove exact verification, bounded retry, successful restoration, explicit restore
+  failure, zero writes when initially unavailable, all policy denials, and exactly one safe paste
+  attempt.
+
+### Windows evidence
+
+- The opt-in Unicode clipboard smoke test succeeded on the first delivery attempt.
+- The test read the original text only in memory, wrote a random sentinel, verified exact equality,
+  restored the original text, and verified the restoration. No clipboard content was printed or
+  persisted.
+- Real `Ctrl+V` was intentionally not sent because no disposable target field was explicitly
+  prepared. This avoids modifying whichever user application happened to have focus.
+
+### Residual risks and unverified assumptions
+
+- Windows clipboard content that has no Unicode-text representation cannot be restored by this
+  text-only adapter after a rare failure occurring after `EmptyClipboard`; that outcome is reported
+  as `RESTORE_FAILED`. The verified happy path replaces clipboard content as normal copy behavior.
+- Some elevated or protected applications may reject `SendInput`; Wisper reports `INPUT_REJECTED`
+  and leaves verified text in the clipboard.
+- Exact foreground window/process/thread matching cannot prove the caret stayed in the same control.
+  This intentionally causes conservative clipboard-only fallback and requires real application tests
+  during the floating-button/reliability milestones.
+
+## Milestone 5 next milestone
+
+Milestone 6 — single-instance application, non-activating floating button, toggle behavior, visible
+states, allowed global hotkeys, and Windows On-Screen Keyboard verification.
 
 ## Milestone 0 plan
 

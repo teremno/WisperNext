@@ -1,5 +1,15 @@
 """Application use cases."""
 
+from wispernext.application.delivery import (
+    AutoPasteResult,
+    AutoPasteService,
+    AutoPasteStatus,
+    ClipboardAdapterError,
+    ClipboardDeliveryResult,
+    ClipboardDeliveryService,
+    ClipboardDeliveryStatus,
+    FocusContext,
+)
 from wispernext.application.transcription import (
     ProviderFailureCode,
     TranscriptionFailureCode,
@@ -11,6 +21,14 @@ from wispernext.application.transcription import (
 )
 
 __all__ = [
+    "AutoPasteResult",
+    "AutoPasteService",
+    "AutoPasteStatus",
+    "ClipboardAdapterError",
+    "ClipboardDeliveryResult",
+    "ClipboardDeliveryService",
+    "ClipboardDeliveryStatus",
+    "FocusContext",
     "ProviderFailureCode",
     "TranscriptionFailureCode",
     "TranscriptionProviderError",

@@ -17,4 +17,6 @@ def test_composition_root_is_side_effect_free_and_returns_fresh_services(tmp_pat
     assert first.settings_store.path == settings_path
     assert first.secret_provider.get_groq_api_key() is None
     assert first.transcription is not second.transcription
+    assert first.clipboard_delivery is not second.clipboard_delivery
+    assert first.auto_paste is not second.auto_paste
     assert not settings_path.parent.exists()

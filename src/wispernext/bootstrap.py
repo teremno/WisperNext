@@ -1,10 +1,15 @@
 """Side-effect-free composition root for implemented application services."""
 
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from wispernext.application import TranscriptionService
+from wispernext.application import (
+    AutoPasteService,
+    ClipboardDeliveryService,
+    TranscriptionService,
+)
 from wispernext.audio.backend import SoundDeviceBackend
 from wispernext.audio.catalog import MicrophoneCatalogService
 from wispernext.audio.session import AudioSessionService
@@ -19,6 +24,7 @@ from wispernext.infrastructure.secrets import (
     SecretProvider,
 )
 from wispernext.infrastructure.windows_credentials import WindowsCredentialStore
+from wispernext.platform.windows.clipboard import WindowsClipboard, WindowsPasteAdapter
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +37,8 @@ class ApplicationServices:
     settings_store: JsonSettingsStore
     secret_provider: SecretProvider
     transcription: TranscriptionService
+    clipboard_delivery: ClipboardDeliveryService
+    auto_paste: AutoPasteService
 
 
 def build_application_services(
@@ -60,4 +68,6 @@ def build_application_services(
             secret_provider,
             GroqTranscriptionTransportFactory(),
         ),
+        clipboard_delivery=ClipboardDeliveryService(WindowsClipboard()),
+        auto_paste=AutoPasteService(WindowsPasteAdapter(), wisper_process_id=os.getpid()),
     )

@@ -54,10 +54,10 @@
 
 ## Delivery
 
-- [ ] Clipboard copy is verified.
-- [ ] Auto-paste is optional.
-- [ ] Failure preserves text in clipboard when possible.
-- [ ] No aggressive focus stealing or arbitrary UI automation.
+- [x] Clipboard copy is verified.
+- [x] Auto-paste is optional.
+- [x] Failure preserves text in clipboard when possible.
+- [x] No aggressive focus stealing or arbitrary UI automation.
 
 ## Packaging and release
 
