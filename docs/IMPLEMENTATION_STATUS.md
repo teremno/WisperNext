@@ -26,7 +26,7 @@ In progress.
 ## Milestone 6 automated implementation and Windows evidence
 
 - Date: 2026-08-08
-- Status: implementation complete; physical-keyboard and Windows On-Screen Keyboard gate pending.
+- Status: implementation complete; keyboard compatibility gate pending external hardware.
 - Scope: PySide6 floating control, industrial high-contrast state rendering, accessibility
   metadata, non-activating Win32 style, dragging and multi-monitor position recovery, settings
   schema v3, strict hotkey parser, `RegisterHotKey` adapter, Qt native event bridge, named-mutex
@@ -68,19 +68,30 @@ python scripts/run_hotkey_smoke.py F8 --self-send-f8
 - `RegisterHotKey(F8)` plus a Windows input self-send produced `WM_HOTKEY`. Qt 6.11.1 delivered the
   event as `windows_generic_MSG`, so the adapter now accepts both Qt-documented dispatcher and
   observed generic Windows message types while still matching the exact Wisper message ID.
-- Two manual physical-F8 listener windows expired without receiving a user key press. This is not
-  recorded as a functional failure because no press was observed.
+- Two manual physical-F8 listener windows expired without receiving a user key press. The user
+  later confirmed that only an on-screen keyboard is available, so a physical-keyboard test cannot
+  be completed in this environment and no physical failure is inferred.
 - Windows On-Screen Keyboard opened successfully, but its protected accessibility tree exposed no
-  individual key controls to UI Automation. A 60-second manual OSK listener expired without a user
-  click, and OSK was then closed normally.
-- Therefore physical-keyboard, OSK, and modifier-combination support remain unverified and the two
-  related checklist items remain open. Milestone 6 is not declared complete yet.
+  individual key controls to UI Automation. The initial 60-second F8 listener expired without an
+  observed hotkey event, and OSK was then closed normally.
+- `Ctrl+Alt+M` was unavailable because Windows or another process already owned it. Registration-only
+  probes verified that `Ctrl+Shift+M`, `Ctrl+Alt+W`, `Ctrl+Shift+W`, `Ctrl+Alt+G`, and `Ctrl+M` were
+  available without opening the microphone.
+- Guided 120-second `Ctrl+Shift+M` and 90-second `Ctrl+M` OSK listener sessions both expired without
+  a `WM_HOTKEY` event. This is documented as an environment/OSK compatibility result, not as proof
+  that the user pressed or did not press a key sequence.
+- The verified keyboard-free path is the non-activating floating button, operated with the mouse.
+  It uses the same start/stop action as the hotkey and has already passed the real focus-preservation
+  test. The OSK documentation checklist item is complete; physical hotkey compatibility and a
+  successful OSK hotkey remain open, so Milestone 6 is not declared complete yet.
 
 ### Residual risks
 
 - Exact focus preservation is verified with a disposable native test field, not yet with Notepad,
   browser, and a third desktop application.
 - Protected/elevated target windows may reject input, and some system hotkeys may already be owned.
+- Windows On-Screen Keyboard did not produce an observed global-hotkey event in the guided tests;
+  users without a physical keyboard must use the verified floating button until this is resolved.
 - The controller's Groq request is timeout-bounded but cannot be cancelled after SDK dispatch.
 - The settings UI for changing the default F8 hotkey belongs to Milestone 8.
 

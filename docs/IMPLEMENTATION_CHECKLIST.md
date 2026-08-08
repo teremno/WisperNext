@@ -23,7 +23,8 @@
 - [x] Same button toggles start/stop.
 - [ ] Allowed hotkeys work.
 - [x] Letters, digits, and ordinary punctuation are rejected as unmodified hotkeys.
-- [ ] Windows On-Screen Keyboard test is documented.
+- [x] Windows On-Screen Keyboard test is documented (no global hotkey event observed; floating
+  button remains the verified keyboard-free control).
 
 ## Groq
 
