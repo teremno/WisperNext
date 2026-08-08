@@ -5,7 +5,15 @@ from collections.abc import Callable
 from enum import StrEnum
 
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPen, QShowEvent
+from PySide6.QtGui import (
+    QColor,
+    QContextMenuEvent,
+    QMouseEvent,
+    QPainter,
+    QPaintEvent,
+    QPen,
+    QShowEvent,
+)
 from PySide6.QtWidgets import QApplication, QWidget
 
 from wispernext.domain import ApplicationState, StateSnapshot
@@ -58,6 +66,7 @@ class FloatingMicrophoneButton(QWidget):
         *,
         toggle_callback: Callable[[], None],
         position_callback: Callable[[int, int], None],
+        settings_callback: Callable[[], None] | None = None,
     ) -> None:
         flags = (
             Qt.WindowType.Tool
@@ -68,6 +77,7 @@ class FloatingMicrophoneButton(QWidget):
         super().__init__(None, flags)
         self._toggle_callback = toggle_callback
         self._position_callback = position_callback
+        self._settings_callback = settings_callback
         self._visual_state = ButtonVisualState.OPENING
         self._press_global: QPointF | None = None
         self._window_origin = QPoint()
@@ -111,6 +121,13 @@ class FloatingMicrophoneButton(QWidget):
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
         self._apply_no_activate_style()
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        if self._settings_callback is None:
+            event.ignore()
+            return
+        self._settings_callback()
+        event.accept()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() is Qt.MouseButton.LeftButton:

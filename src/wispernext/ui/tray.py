@@ -1,4 +1,4 @@
-"""Minimal system-tray lifecycle control."""
+"""System-tray settings and lifecycle controls."""
 
 from collections.abc import Callable
 
@@ -8,17 +8,34 @@ from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 
 class WisperTrayIcon(QSystemTrayIcon):
-    """Expose a deliberate Exit action without adding a persistent panel."""
+    """Expose settings and a deliberate Exit action from the Windows tray."""
 
-    def __init__(self, shutdown_callback: Callable[[], None]) -> None:
+    def __init__(
+        self,
+        *,
+        settings_callback: Callable[[], None],
+        shutdown_callback: Callable[[], None],
+    ) -> None:
         super().__init__(_tray_icon())
         self.setToolTip("WisperNext — диктування")
         menu = QMenu()
+        settings_action = QAction("Налаштування…", menu)
+        settings_action.triggered.connect(settings_callback)
+        menu.addAction(settings_action)
+        menu.addSeparator()
         exit_action = QAction("Вийти з WisperNext", menu)
         exit_action.triggered.connect(shutdown_callback)
         menu.addAction(exit_action)
         self.setContextMenu(menu)
+        self.activated.connect(
+            lambda reason: (
+                settings_callback()
+                if reason is QSystemTrayIcon.ActivationReason.DoubleClick
+                else None
+            )
+        )
         self._menu = menu
+        self._settings_action = settings_action
         self._exit_action = exit_action
 
 

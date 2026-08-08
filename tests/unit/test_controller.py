@@ -61,6 +61,9 @@ DEVICE = InputDevice(
 
 
 class FakeCatalog:
+    def list_devices(self) -> tuple[InputDevice, ...]:
+        return (DEVICE,)
+
     def resolve(self, _settings: Settings) -> DeviceResolution:
         return DeviceResolution(ResolutionStatus.RESOLVED, DEVICE)
 
@@ -233,6 +236,30 @@ def test_button_position_is_saved_on_worker_without_changing_domain_state() -> N
     assert machine.snapshot().state is ApplicationState.IDLE
     assert store.saved[-1].floating_button_x == -200
     assert store.saved[-1].floating_button_y == 300
+
+
+def test_settings_update_is_persisted_and_used_as_current_snapshot() -> None:
+    controller, _machine, _audio, _transcription, _clipboard, store, _states = build_controller(
+        scheduler=ImmediateScheduler()
+    )
+    updated = Settings(auto_paste=True, max_recording_seconds=90)
+    saved: list[Settings] = []
+
+    controller.update_settings(updated, saved.append, lambda message: None)
+
+    assert store.saved[-1] == updated
+    assert saved == [updated]
+    assert controller.current_settings() == updated
+
+
+def test_microphone_refresh_returns_metadata_without_opening_audio() -> None:
+    controller, _machine, audio, *_rest = build_controller(scheduler=ImmediateScheduler())
+    loaded: list[tuple[InputDevice, ...]] = []
+
+    controller.request_microphones(loaded.append, lambda message: None)
+
+    assert loaded == [(DEVICE,)]
+    assert audio.start_count == 0
 
 
 def test_shutdown_releases_audio_and_reaches_terminated() -> None:

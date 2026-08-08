@@ -15,7 +15,7 @@ from wispernext.application.delivery import (
 )
 from wispernext.application.transcription import TranscriptionFailureCode, TranscriptionService
 from wispernext.audio.catalog import MicrophoneCatalogService
-from wispernext.audio.devices import ResolutionStatus
+from wispernext.audio.devices import InputDevice, ResolutionStatus
 from wispernext.audio.session import AudioSessionError, AudioSessionService
 from wispernext.audio.signal import AudioCategory, validate_audio
 from wispernext.domain import (
@@ -91,6 +91,11 @@ class DictationController:
         """Schedule initialization without blocking the UI thread."""
         self._scheduler.schedule(self._initialize)
 
+    def current_settings(self) -> Settings:
+        """Return the latest immutable settings snapshot."""
+        with self._lock:
+            return self._settings
+
     def _initialize(self) -> None:
         with self._lock:
             self._state_machine.transition_to(ApplicationState.IDLE)
@@ -99,6 +104,50 @@ class DictationController:
     def save_button_position(self, x: int, y: int) -> None:
         """Persist logical Qt coordinates on the serialized worker."""
         self._scheduler.schedule(lambda: self._save_button_position(x, y))
+
+    def request_microphones(
+        self,
+        on_loaded: Callable[[tuple[InputDevice, ...]], None],
+        on_error: Callable[[str], None],
+    ) -> None:
+        """Enumerate microphone metadata on the serialized worker."""
+        self._scheduler.schedule(lambda: self._request_microphones(on_loaded, on_error))
+
+    def _request_microphones(
+        self,
+        on_loaded: Callable[[tuple[InputDevice, ...]], None],
+        on_error: Callable[[str], None],
+    ) -> None:
+        try:
+            devices = self._microphone_catalog.list_devices()
+        except Exception:
+            self._ui_dispatcher(lambda: on_error("Не вдалося отримати список мікрофонів."))
+            return
+        self._ui_dispatcher(lambda: on_loaded(devices))
+
+    def update_settings(
+        self,
+        settings: Settings,
+        on_saved: Callable[[Settings], None],
+        on_error: Callable[[str], None],
+    ) -> None:
+        """Validate and persist non-secret settings on the serialized worker."""
+        self._scheduler.schedule(lambda: self._update_settings(settings, on_saved, on_error))
+
+    def _update_settings(
+        self,
+        settings: Settings,
+        on_saved: Callable[[Settings], None],
+        on_error: Callable[[str], None],
+    ) -> None:
+        try:
+            self._settings_store.save(settings)
+        except (SettingsStorageError, ValueError):
+            self._ui_dispatcher(lambda: on_error("Не вдалося зберегти налаштування."))
+            return
+        with self._lock:
+            self._settings = settings
+        self._ui_dispatcher(lambda: on_saved(settings))
 
     def _save_button_position(self, x: int, y: int) -> None:
         with self._lock:

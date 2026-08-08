@@ -8,6 +8,25 @@ Milestone 6 — Floating button, hotkeys, and single instance
 
 In progress.
 
+## User-requested launch and settings bridge
+
+- Date: 2026-08-08
+- Reason: the user has no physical keyboard and needs a discoverable mouse-only launch and
+  configuration path before the later packaging milestone.
+- Added a real `Налаштування…` tray action, tray-icon double-click, and right-click access from the
+  floating button. The settings window exposes system-default/manual microphone selection, device
+  refresh, auto-paste, maximum recording duration, and floating-button launch preference.
+- Microphone enumeration and settings persistence run on the existing serialized worker. Refreshing
+  the list enumerates metadata only and never opens an audio stream or changes Windows audio settings.
+- Added `scripts/create_development_shortcut.ps1` and used it to create
+  `C:\Users\Oleksandr\Desktop\WisperNext.lnk` for the current local editable build.
+- Read-back validation confirmed the shortcut target and arguments. Launching it twice left exactly
+  one WisperNext process, confirming the shortcut follows the existing single-instance guard.
+- This is not the Milestone 9 installer: automatic shortcut creation during install, Start menu,
+  upgrade, and uninstall behavior remain pending and the packaging checklist stays open.
+- Automated evidence: 295 tests passed with one hardware test deselected; Ruff and strict mypy
+  passed. Offscreen visual QA found and corrected a low-contrast form-label style.
+
 ## Milestone 6 plan
 
 1. Add a Win32 named-mutex single-instance guard with deterministic cleanup.

@@ -14,6 +14,7 @@ from wispernext.application import DictationController
 from wispernext.audio.session import AudioSessionError
 from wispernext.bootstrap import build_application_services
 from wispernext.domain import ApplicationState, StateSnapshot, parse_hotkey
+from wispernext.infrastructure.config import Settings
 from wispernext.platform.windows.hotkeys import (
     HotkeyRegistrationError,
     WindowsGlobalHotkey,
@@ -21,6 +22,7 @@ from wispernext.platform.windows.hotkeys import (
 )
 from wispernext.platform.windows.single_instance import WindowsSingleInstance
 from wispernext.ui.floating_button import FloatingMicrophoneButton
+from wispernext.ui.settings_dialog import SettingsDialog
 from wispernext.ui.tray import WisperTrayIcon
 
 
@@ -80,9 +82,11 @@ def run_desktop_application(
     settings = services.settings_store.load().settings
     dispatcher = UiDispatcher()
     controller_holder: list[DictationController] = []
+    settings_callback_holder: list[Callable[[], None]] = []
     button = FloatingMicrophoneButton(
         toggle_callback=lambda: controller_holder[0].toggle_recording(),
         position_callback=lambda x, y: controller_holder[0].save_button_position(x, y),
+        settings_callback=lambda: settings_callback_holder[0](),
     )
     controller = DictationController(
         state_machine=services.state_machine,
@@ -99,7 +103,46 @@ def run_desktop_application(
         ui_dispatcher=dispatcher.dispatch,
     )
     controller_holder.append(controller)
-    tray = WisperTrayIcon(controller.shutdown)
+    settings_dialogs: list[SettingsDialog] = []
+
+    def open_settings() -> None:
+        if settings_dialogs and settings_dialogs[0].isVisible():
+            settings_dialogs[0].raise_()
+            settings_dialogs[0].activateWindow()
+            return
+
+        dialog: SettingsDialog
+
+        def refresh() -> None:
+            controller.request_microphones(dialog.load_microphones, dialog.show_error)
+
+        def saved(updated: Settings) -> None:
+            if updated.launch_floating_button:
+                button.show()
+            dialog.saved(updated)
+
+        dialog = SettingsDialog(
+            controller.current_settings(),
+            refresh_callback=refresh,
+            save_callback=lambda updated: controller.update_settings(
+                updated,
+                saved,
+                dialog.show_error,
+            ),
+        )
+        settings_dialogs.append(dialog)
+        dialog.destroyed.connect(lambda: settings_dialogs.clear())
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        dialog.start_refresh()
+
+    settings_callback_holder.append(open_settings)
+
+    tray = WisperTrayIcon(
+        settings_callback=open_settings,
+        shutdown_callback=controller.shutdown,
+    )
 
     hotkey = WindowsGlobalHotkey()
     event_filter = HotkeyEventFilter(controller.toggle_recording)
