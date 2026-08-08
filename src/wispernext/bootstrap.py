@@ -12,7 +12,13 @@ from wispernext.domain import ApplicationStateMachine
 from wispernext.groq import GroqTranscriptionTransportFactory
 from wispernext.infrastructure.config import JsonSettingsStore
 from wispernext.infrastructure.paths import UserPaths
-from wispernext.infrastructure.secrets import EnvironmentSecretProvider, SecretProvider
+from wispernext.infrastructure.secrets import (
+    ChainedSecretProvider,
+    CredentialManagerSecretProvider,
+    EnvironmentSecretProvider,
+    SecretProvider,
+)
+from wispernext.infrastructure.windows_credentials import WindowsCredentialStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +42,14 @@ def build_application_services(
     """Create fresh service instances without loading files or opening resources."""
     resolved_path = settings_path or UserPaths.resolve(environ, home).settings_file
     audio_backend = SoundDeviceBackend()
-    secret_provider = EnvironmentSecretProvider(environ)
+    secret_provider: SecretProvider
+    if environ is None:
+        secret_provider = ChainedSecretProvider(
+            CredentialManagerSecretProvider(WindowsCredentialStore()),
+            EnvironmentSecretProvider(),
+        )
+    else:
+        secret_provider = EnvironmentSecretProvider(environ)
     return ApplicationServices(
         state_machine=ApplicationStateMachine(),
         microphone_catalog=MicrophoneCatalogService(audio_backend),

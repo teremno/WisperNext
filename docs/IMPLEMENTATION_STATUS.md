@@ -368,14 +368,25 @@ python scripts/run_live_transcription_smoke.py --seconds 6 --microphone-id <stab
 
 ### Residual risks and unverified assumptions
 
-- `WISPER_GROQ_API_KEY` exists only in the current process environment. A normal desktop launch
-  will not inherit it until a persistent Windows Credential Manager flow is implemented.
+- The settings UI does not yet expose key replacement/deletion, although the tested credential
+  service supports both operations.
 - The synchronous Groq SDK call cannot be cancelled after dispatch; strict total/read/write/
   connect timeouts bound it instead. Controller-level background execution belongs to the UI
   integration milestone.
 - The current Windows default microphone is too quiet for reliable transcription. Wisper does
   not change it; manual Realtek selection works and remains the safe choice for now.
 - Provider availability, rate limits, and model permissions remain external runtime conditions.
+
+### Windows Credential Manager follow-up — 2026-08-08
+
+- Added a native, dependency-free Generic Credential adapter using `CredReadW`, `CredWriteW`,
+  `CredDeleteW`, and `CredFree`.
+- Persisted the existing process key under the user-scoped target `WisperNext/GroqApiKey` and
+  verified an exact in-memory round trip without printing or writing the value elsewhere.
+- Removed `WISPER_GROQ_API_KEY` from a child-process environment and successfully authenticated
+  to Groq using only Credential Manager; the account returned 15 visible models.
+- Wisper now prefers Credential Manager and uses the environment variable only as a development
+  fallback. Explicitly injected test environments remain isolated from the real Windows store.
 
 ## Milestone 4 next milestone
 
