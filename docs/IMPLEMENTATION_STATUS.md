@@ -1,5 +1,18 @@
 # Implementation Status
 
+## Repository rename cleanup — 2026-08-13
+
+- Confirmed the primary checkout uses `https://github.com/teremno/WisperNext.git` on `main`.
+- Removed the accidental nested `WisperNext` clone only after confirming it was clean, matched the
+  primary checkout at commit `4e4fd7f`, and used the same remote.
+- Updated the clone commands, Codex workspace name, release URL, and Git workflow remote to use the
+  renamed `WisperNext` repository. No application code, settings, credentials, or Windows audio
+  configuration changed.
+- Verification: `ruff format --check`, `ruff check`, `mypy src`, import smoke test, and
+  `pytest -m "not hardware"` passed; 350 tests passed and 1 hardware test was deselected.
+- Residual risk: the existing workspace folder keeps its current name so current shortcuts and the
+  virtual environment keep working. Fresh clones use the new `WisperNext` folder name.
+
 ## Translation reliability and private diagnostics plan
 
 1. Add a privacy-safe structured journal containing only bounded event categories, operation IDs,
@@ -83,7 +96,7 @@
 - Date: 2026-08-13
 - Release checkpoint: annotated tag and GitHub Release `v0.1.0` preserve commit `fe13115` as
   "First stable working version" before localization changes. Release URL:
-  https://github.com/teremno/WisperNext_v3/releases/tag/v0.1.0
+  https://github.com/teremno/WisperNext/releases/tag/v0.1.0
 - Scope: Russian was added as the sixteenth fixed speech/output language. The application UI is
   now available in English, Ukrainian, and Russian through one centralized catalog covering the
   settings dialog, tray menu, floating-button accessibility labels, and runtime notices.

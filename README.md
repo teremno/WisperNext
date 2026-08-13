@@ -74,8 +74,8 @@ A production installer is not available yet. The current version is installed fr
 Open PowerShell and run:
 
 ```powershell
-git clone https://github.com/teremno/WisperNext_v3.git
-cd WisperNext_v3
+git clone https://github.com/teremno/WisperNext.git
+cd WisperNext
 
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
@@ -115,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\create_development_shortcut.p
 ## Development with Codex
 
 1. Clone the repository.
-2. Open the cloned `WisperNext_v3` folder as a workspace in OpenAI Codex.
+2. Open the cloned `WisperNext` folder as a workspace in OpenAI Codex.
 3. Start a new task and send this exact instruction:
 
 ```text

@@ -1,6 +1,6 @@
 # Git Workflow
 
-Remote: `https://github.com/teremno/WisperNext_v3.git`
+Remote: `https://github.com/teremno/WisperNext.git`
 
 ## Branch policy
 
