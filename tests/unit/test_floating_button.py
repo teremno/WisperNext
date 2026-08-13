@@ -7,6 +7,7 @@ from PySide6.QtGui import QContextMenuEvent
 from PySide6.QtWidgets import QApplication
 
 from wispernext.domain import ApplicationState, StateSnapshot
+from wispernext.infrastructure.config import InterfaceLanguage
 from wispernext.ui.floating_button import (
     ButtonVisualState,
     FloatingMicrophoneButton,
@@ -29,7 +30,9 @@ def test_every_application_state_maps_to_an_explicit_visual_shape() -> None:
 def test_widget_is_accessible_non_focusable_and_always_on_top() -> None:
     application()
     button = FloatingMicrophoneButton(
-        toggle_callback=lambda: None, position_callback=lambda x, y: None
+        toggle_callback=lambda: None,
+        position_callback=lambda x, y: None,
+        interface_language=InterfaceLanguage.UKRAINIAN,
     )
 
     flags = button.windowFlags()
@@ -46,7 +49,9 @@ def test_widget_is_accessible_non_focusable_and_always_on_top() -> None:
 def test_rendering_snapshot_updates_accessible_state_without_owning_domain_state() -> None:
     application()
     button = FloatingMicrophoneButton(
-        toggle_callback=lambda: None, position_callback=lambda x, y: None
+        toggle_callback=lambda: None,
+        position_callback=lambda x, y: None,
+        interface_language=InterfaceLanguage.UKRAINIAN,
     )
 
     button.render_snapshot(StateSnapshot(ApplicationState.RECORDING, 2, None))

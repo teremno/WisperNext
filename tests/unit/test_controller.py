@@ -282,7 +282,7 @@ def test_auto_paste_rejection_surfaces_notice_after_clipboard_delivery() -> None
 
     assert machine.snapshot().state is ApplicationState.IDLE
     assert clipboard.texts == ["recognized"]
-    assert any("Windows" in notice for notice in notices)
+    assert notices == ["notice.paste.input_rejected"]
 
 
 def test_processing_failure_delivers_raw_transcript_and_surfaces_fallback() -> None:
@@ -306,7 +306,7 @@ def test_processing_failure_delivers_raw_transcript_and_surfaces_fallback() -> N
     controller.toggle_recording()
 
     assert clipboard.texts == ["recognized"]
-    assert any("початковий текст" in notice for notice in notices)
+    assert notices == ["notice.processing_fallback"]
 
 
 def test_button_position_is_saved_on_worker_without_changing_domain_state() -> None:

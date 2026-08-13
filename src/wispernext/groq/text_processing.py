@@ -28,6 +28,7 @@ from wispernext.infrastructure.secrets import SecretValue
 _LANGUAGE_NAMES = {
     LanguageCode.ENGLISH: "English",
     LanguageCode.UKRAINIAN: "Ukrainian",
+    LanguageCode.RUSSIAN: "Russian",
     LanguageCode.GERMAN: "German",
     LanguageCode.FRENCH: "French",
     LanguageCode.SPANISH: "Spanish",

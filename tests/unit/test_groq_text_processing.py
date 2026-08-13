@@ -63,6 +63,23 @@ def test_transport_uses_schema_bound_capped_translation_request() -> None:
     assert json.loads(messages[1]["content"])["transcript"] == "Привіт"
 
 
+@pytest.mark.parametrize("target_language", list(LanguageCode))
+def test_transport_supports_every_configured_translation_target(
+    target_language: LanguageCode,
+) -> None:
+    payload = json.dumps({"text": "translated", "language": target_language.value})
+    transport = GroqTextProcessingTransport(fake_client(FakeCompletions(payload)))
+
+    result = transport.process(
+        "source",
+        model="openai/gpt-oss-120b",
+        mode=TextProcessingMode.TRANSLATE,
+        target_language=target_language,
+    )
+
+    assert result.language == target_language.value
+
+
 def test_transport_maps_timeout_without_exposing_provider_message() -> None:
     timeout = APITimeoutError(request=httpx.Request("POST", "https://api.groq.com"))
     transport = GroqTextProcessingTransport(fake_client(FakeCompletions(timeout)))

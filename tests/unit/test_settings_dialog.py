@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication
 
 from wispernext.audio.devices import ConnectionKind, InputDevice
 from wispernext.domain import MicrophoneSelectionMode
-from wispernext.infrastructure.config import LanguageCode, Settings
+from wispernext.infrastructure.config import InterfaceLanguage, LanguageCode, Settings
 from wispernext.ui.settings_dialog import SettingsDialog, language_options
 
 DEVICE = InputDevice(2, "stable-usb", "USB Mic", "WASAPI", 48_000, 1, ConnectionKind.USB)
@@ -24,7 +24,12 @@ def test_dialog_preserves_manual_microphone_and_builds_valid_settings() -> None:
         auto_paste=True,
         max_recording_seconds=90,
     )
-    dialog = SettingsDialog(original, refresh_callback=lambda: None, save_callback=lambda _: None)
+    dialog = SettingsDialog(
+        original,
+        interface_language=InterfaceLanguage.UKRAINIAN,
+        refresh_callback=lambda: None,
+        save_callback=lambda _: None,
+    )
 
     dialog.load_microphones((DEVICE,))
     draft = dialog.draft_settings()
@@ -43,7 +48,12 @@ def test_dialog_defaults_to_system_microphone_and_refresh_is_explicit() -> None:
         nonlocal refresh_count
         refresh_count += 1
 
-    dialog = SettingsDialog(Settings(), refresh_callback=refresh, save_callback=lambda _: None)
+    dialog = SettingsDialog(
+        Settings(),
+        interface_language=InterfaceLanguage.ENGLISH,
+        refresh_callback=refresh,
+        save_callback=lambda _: None,
+    )
 
     assert refresh_count == 0
     dialog.start_refresh()
@@ -60,14 +70,21 @@ def test_dialog_exposes_all_languages_and_preserves_separate_choices() -> None:
     original = Settings(
         input_language=LanguageCode.ENGLISH,
         output_language=LanguageCode.UKRAINIAN,
+        interface_language=InterfaceLanguage.RUSSIAN,
         safe_formatting=False,
     )
-    dialog = SettingsDialog(original, refresh_callback=lambda: None, save_callback=lambda _: None)
+    dialog = SettingsDialog(
+        original,
+        interface_language=InterfaceLanguage.RUSSIAN,
+        refresh_callback=lambda: None,
+        save_callback=lambda _: None,
+    )
 
     draft = dialog.draft_settings()
 
     assert {language for _label, language in language_options()} == set(LanguageCode)
-    assert len(language_options()) == 15
+    assert len(language_options()) == 16
+    assert draft.interface_language is InterfaceLanguage.RUSSIAN
     assert draft.input_language is LanguageCode.ENGLISH
     assert draft.output_language is LanguageCode.UKRAINIAN
     assert not draft.safe_formatting

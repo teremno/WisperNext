@@ -6,6 +6,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from wispernext.infrastructure.config import InterfaceLanguage
+from wispernext.ui.i18n import tr
+
 
 class WisperTrayIcon(QSystemTrayIcon):
     """Expose settings and a deliberate Exit action from the Windows tray."""
@@ -15,15 +18,15 @@ class WisperTrayIcon(QSystemTrayIcon):
         *,
         settings_callback: Callable[[], None],
         shutdown_callback: Callable[[], None],
+        interface_language: InterfaceLanguage = InterfaceLanguage.ENGLISH,
     ) -> None:
         super().__init__(_tray_icon())
-        self.setToolTip("WisperNext — диктування")
         menu = QMenu()
-        settings_action = QAction("Налаштування…", menu)
+        settings_action = QAction(menu)
         settings_action.triggered.connect(settings_callback)
         menu.addAction(settings_action)
         menu.addSeparator()
-        exit_action = QAction("Вийти з WisperNext", menu)
+        exit_action = QAction(menu)
         exit_action.triggered.connect(shutdown_callback)
         menu.addAction(exit_action)
         self.setContextMenu(menu)
@@ -37,6 +40,13 @@ class WisperTrayIcon(QSystemTrayIcon):
         self._menu = menu
         self._settings_action = settings_action
         self._exit_action = exit_action
+        self.set_interface_language(interface_language)
+
+    def set_interface_language(self, interface_language: InterfaceLanguage) -> None:
+        """Apply localized tray labels without rebuilding signal connections."""
+        self.setToolTip(tr(interface_language, "tray.tooltip"))
+        self._settings_action.setText(tr(interface_language, "tray.settings"))
+        self._exit_action.setText(tr(interface_language, "tray.exit"))
 
 
 def _tray_icon() -> QIcon:

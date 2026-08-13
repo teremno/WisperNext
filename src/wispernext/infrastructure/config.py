@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from wispernext.domain import HotkeyValidationError, MicrophoneSelectionMode, parse_hotkey
 
-CURRENT_SCHEMA_VERSION: Final = 4
+CURRENT_SCHEMA_VERSION: Final = 5
 MIN_RECORDING_SECONDS: Final = 5
 MAX_RECORDING_SECONDS: Final = 1_800
 
@@ -22,6 +22,7 @@ class LanguageCode(StrEnum):
 
     ENGLISH = "en"
     UKRAINIAN = "uk"
+    RUSSIAN = "ru"
     GERMAN = "de"
     FRENCH = "fr"
     SPANISH = "es"
@@ -35,6 +36,14 @@ class LanguageCode(StrEnum):
     CHINESE_SIMPLIFIED = "zh-CN"
     JAPANESE = "ja"
     KOREAN = "ko"
+
+
+class InterfaceLanguage(StrEnum):
+    """Languages in which WisperNext can render its own interface."""
+
+    ENGLISH = "en"
+    UKRAINIAN = "uk"
+    RUSSIAN = "ru"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +60,7 @@ class Settings:
     launch_floating_button: bool = True
     floating_button_x: int | None = None
     floating_button_y: int | None = None
+    interface_language: InterfaceLanguage | None = None
     input_language: LanguageCode | None = None
     output_language: LanguageCode | None = None
     safe_formatting: bool = True
@@ -80,11 +90,17 @@ _POSITION_FIELDS: Final = frozenset({"floating_button_x", "floating_button_y"})
 _VERSION_ZERO_FIELDS: Final = _FIELDS - {
     "schema_version",
     "microphone_selection_mode",
+    "interface_language",
     *_POSITION_FIELDS,
 }
-_VERSION_ONE_FIELDS: Final = _FIELDS - {"microphone_selection_mode", *_POSITION_FIELDS}
-_VERSION_TWO_FIELDS: Final = _FIELDS - _POSITION_FIELDS
-_VERSION_THREE_FIELDS: Final = _FIELDS
+_VERSION_ONE_FIELDS: Final = _FIELDS - {
+    "microphone_selection_mode",
+    "interface_language",
+    *_POSITION_FIELDS,
+}
+_VERSION_TWO_FIELDS: Final = _FIELDS - {"interface_language", *_POSITION_FIELDS}
+_VERSION_THREE_FIELDS: Final = _FIELDS - {"interface_language"}
+_VERSION_FOUR_FIELDS: Final = _VERSION_THREE_FIELDS
 
 
 def decode_settings(payload: object) -> Settings:
@@ -132,6 +148,7 @@ def decode_settings(payload: object) -> Settings:
             "microphone_selection_mode": selection_mode,
             "floating_button_x": None,
             "floating_button_y": None,
+            "interface_language": None,
         }
     elif version == 2:
         unknown = set(values) - _VERSION_TWO_FIELDS
@@ -145,6 +162,7 @@ def decode_settings(payload: object) -> Settings:
             "schema_version": CURRENT_SCHEMA_VERSION,
             "floating_button_x": None,
             "floating_button_y": None,
+            "interface_language": None,
         }
     elif version == 3:
         unknown = set(values) - _VERSION_THREE_FIELDS
@@ -160,6 +178,19 @@ def decode_settings(payload: object) -> Settings:
             "text_model": (
                 "openai/gpt-oss-120b" if text_model == "llama-3.3-70b-versatile" else text_model
             ),
+            "interface_language": None,
+        }
+    elif version == 4:
+        unknown = set(values) - _VERSION_FOUR_FIELDS
+        missing = _VERSION_FOUR_FIELDS - set(values)
+        if unknown:
+            raise SettingsValidationError(f"Unknown settings fields: {sorted(unknown)!r}.")
+        if missing:
+            raise SettingsValidationError(f"Missing settings fields: {sorted(missing)!r}.")
+        values = {
+            **values,
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "interface_language": None,
         }
     elif version != CURRENT_SCHEMA_VERSION:
         raise SettingsValidationError(f"Unsupported settings schema version: {version}.")
@@ -196,6 +227,7 @@ def decode_settings(payload: object) -> Settings:
     button_y = _optional_position(merged, "floating_button_y")
     if (button_x is None) != (button_y is None):
         raise SettingsValidationError("Floating button coordinates must be both set or both null.")
+    interface_language = _optional_interface_language(merged)
     input_language = _optional_language(merged, "input_language")
     output_language = _optional_language(merged, "output_language")
     safe_formatting = _required_bool(merged, "safe_formatting")
@@ -212,6 +244,7 @@ def decode_settings(payload: object) -> Settings:
         launch_floating_button=launch_button,
         floating_button_x=button_x,
         floating_button_y=button_y,
+        interface_language=interface_language,
         input_language=input_language,
         output_language=output_language,
         safe_formatting=safe_formatting,
@@ -233,6 +266,9 @@ def encode_settings(settings: Settings) -> dict[str, object]:
         "launch_floating_button": settings.launch_floating_button,
         "floating_button_x": settings.floating_button_x,
         "floating_button_y": settings.floating_button_y,
+        "interface_language": (
+            settings.interface_language.value if settings.interface_language else None
+        ),
         "input_language": settings.input_language.value if settings.input_language else None,
         "output_language": settings.output_language.value if settings.output_language else None,
         "safe_formatting": settings.safe_formatting,
@@ -359,6 +395,22 @@ def _optional_language(values: Mapping[str, object], field: str) -> LanguageCode
     except ValueError as exc:
         raise SettingsValidationError(
             f"{field} must be a supported language code or null."
+        ) from exc
+
+
+def _optional_interface_language(values: Mapping[str, object]) -> InterfaceLanguage | None:
+    value = values["interface_language"]
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise SettingsValidationError(
+            "interface_language must be a supported language code or null."
+        )
+    try:
+        return InterfaceLanguage(value)
+    except ValueError as exc:
+        raise SettingsValidationError(
+            "interface_language must be a supported language code or null."
         ) from exc
 
 

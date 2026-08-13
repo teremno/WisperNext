@@ -17,6 +17,8 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QWidget
 
 from wispernext.domain import ApplicationState, StateSnapshot
+from wispernext.infrastructure.config import InterfaceLanguage
+from wispernext.ui.i18n import tr
 from wispernext.ui.layout import ScreenRect, visible_button_position
 
 _BUTTON_SIZE = 64
@@ -34,13 +36,13 @@ class ButtonVisualState(StrEnum):
     DISABLED = "disabled"
 
 
-_STATE_LABELS = {
-    ButtonVisualState.READY: "Готово. Натисніть, щоб почати запис.",
-    ButtonVisualState.OPENING: "Відкриття мікрофона.",
-    ButtonVisualState.RECORDING: "Запис. Натисніть, щоб зупинити.",
-    ButtonVisualState.PROCESSING: "Обробка диктування.",
-    ButtonVisualState.ERROR: "Помилка. Натисніть, щоб повернутися.",
-    ButtonVisualState.DISABLED: "Wisper завершує роботу.",
+_STATE_KEYS = {
+    ButtonVisualState.READY: "button.ready",
+    ButtonVisualState.OPENING: "button.opening",
+    ButtonVisualState.RECORDING: "button.recording",
+    ButtonVisualState.PROCESSING: "button.processing",
+    ButtonVisualState.ERROR: "button.error",
+    ButtonVisualState.DISABLED: "button.disabled",
 }
 
 
@@ -67,6 +69,7 @@ class FloatingMicrophoneButton(QWidget):
         toggle_callback: Callable[[], None],
         position_callback: Callable[[int, int], None],
         settings_callback: Callable[[], None] | None = None,
+        interface_language: InterfaceLanguage = InterfaceLanguage.ENGLISH,
     ) -> None:
         flags = (
             Qt.WindowType.Tool
@@ -78,6 +81,7 @@ class FloatingMicrophoneButton(QWidget):
         self._toggle_callback = toggle_callback
         self._position_callback = position_callback
         self._settings_callback = settings_callback
+        self._interface_language = interface_language
         self._visual_state = ButtonVisualState.OPENING
         self._press_global: QPointF | None = None
         self._window_origin = QPoint()
@@ -86,7 +90,7 @@ class FloatingMicrophoneButton(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setAccessibleName("Кнопка мікрофона Wisper")
+        self.setAccessibleName(tr(self._interface_language, "button.name"))
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._update_accessibility()
 
@@ -117,6 +121,12 @@ class FloatingMicrophoneButton(QWidget):
     def show_notice(self, message: str) -> None:
         self.setToolTip(message)
         self.setAccessibleDescription(message)
+
+    def set_interface_language(self, interface_language: InterfaceLanguage) -> None:
+        """Apply a saved interface language without restarting the application."""
+        self._interface_language = interface_language
+        self.setAccessibleName(tr(interface_language, "button.name"))
+        self._update_accessibility()
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
@@ -172,7 +182,7 @@ class FloatingMicrophoneButton(QWidget):
         _draw_state_icon(painter, self._visual_state)
 
     def _update_accessibility(self) -> None:
-        label = _STATE_LABELS[self._visual_state]
+        label = tr(self._interface_language, _STATE_KEYS[self._visual_state])
         self.setAccessibleDescription(label)
         self.setToolTip(label)
 

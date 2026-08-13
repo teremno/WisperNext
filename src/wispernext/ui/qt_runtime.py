@@ -7,7 +7,15 @@ from collections.abc import Callable, Sequence
 from contextlib import suppress
 from typing import override
 
-from PySide6.QtCore import QAbstractNativeEventFilter, QByteArray, QObject, Qt, QTimer, Signal
+from PySide6.QtCore import (
+    QAbstractNativeEventFilter,
+    QByteArray,
+    QLocale,
+    QObject,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtWidgets import QApplication
 
 from wispernext.application import DictationController
@@ -22,6 +30,7 @@ from wispernext.platform.windows.hotkeys import (
 )
 from wispernext.platform.windows.single_instance import WindowsSingleInstance
 from wispernext.ui.floating_button import FloatingMicrophoneButton
+from wispernext.ui.i18n import resolve_interface_language, tr
 from wispernext.ui.settings_dialog import SettingsDialog
 from wispernext.ui.tray import WisperTrayIcon
 
@@ -80,6 +89,9 @@ def run_desktop_application(
     app.setQuitOnLastWindowClosed(False)
     services = build_application_services()
     settings = services.settings_store.load().settings
+    active_language = [
+        resolve_interface_language(settings.interface_language, QLocale.system().name())
+    ]
     dispatcher = UiDispatcher()
     controller_holder: list[DictationController] = []
     settings_callback_holder: list[Callable[[], None]] = []
@@ -87,6 +99,7 @@ def run_desktop_application(
         toggle_callback=lambda: controller_holder[0].toggle_recording(),
         position_callback=lambda x, y: controller_holder[0].save_button_position(x, y),
         settings_callback=lambda: settings_callback_holder[0](),
+        interface_language=active_language[0],
     )
     controller = DictationController(
         state_machine=services.state_machine,
@@ -100,7 +113,7 @@ def run_desktop_application(
         settings_store=services.settings_store,
         initial_settings=settings,
         state_listener=lambda snapshot: _render_state(app, button, snapshot),
-        notice_listener=button.show_notice,
+        notice_listener=lambda key: button.show_notice(tr(active_language[0], key)),
         ui_dispatcher=dispatcher.dispatch,
     )
     controller_holder.append(controller)
@@ -115,20 +128,29 @@ def run_desktop_application(
         dialog: SettingsDialog
 
         def refresh() -> None:
-            controller.request_microphones(dialog.load_microphones, dialog.show_error)
+            controller.request_microphones(
+                dialog.load_microphones,
+                lambda key: dialog.show_error(tr(active_language[0], key)),
+            )
 
         def saved(updated: Settings) -> None:
+            active_language[0] = resolve_interface_language(
+                updated.interface_language, QLocale.system().name()
+            )
+            button.set_interface_language(active_language[0])
+            tray.set_interface_language(active_language[0])
             if updated.launch_floating_button:
                 button.show()
             dialog.saved(updated)
 
         dialog = SettingsDialog(
             controller.current_settings(),
+            interface_language=active_language[0],
             refresh_callback=refresh,
             save_callback=lambda updated: controller.update_settings(
                 updated,
                 saved,
-                dialog.show_error,
+                lambda key: dialog.show_error(tr(active_language[0], key)),
             ),
         )
         settings_dialogs.append(dialog)
@@ -143,6 +165,7 @@ def run_desktop_application(
     tray = WisperTrayIcon(
         settings_callback=open_settings,
         shutdown_callback=controller.shutdown,
+        interface_language=active_language[0],
     )
 
     hotkey = WindowsGlobalHotkey()
@@ -151,7 +174,7 @@ def run_desktop_application(
     try:
         hotkey.register(parse_hotkey(settings.hotkey))
     except HotkeyRegistrationError:
-        button.show_notice("Глобальна клавіша зайнята. Кнопка мікрофона працює.")
+        button.show_notice(tr(active_language[0], "notice.hotkey_unavailable"))
 
     button.place(settings.floating_button_x, settings.floating_button_y)
     if settings.launch_floating_button:

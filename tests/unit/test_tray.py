@@ -4,6 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
+from wispernext.infrastructure.config import InterfaceLanguage
 from wispernext.ui.tray import WisperTrayIcon
 
 
@@ -17,6 +18,7 @@ def test_tray_exposes_settings_before_exit() -> None:
     tray = WisperTrayIcon(
         settings_callback=lambda: events.append("settings"),
         shutdown_callback=lambda: events.append("exit"),
+        interface_language=InterfaceLanguage.UKRAINIAN,
     )
 
     actions = tray.contextMenu().actions() if tray.contextMenu() is not None else []

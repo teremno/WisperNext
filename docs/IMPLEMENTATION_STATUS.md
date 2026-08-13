@@ -1,5 +1,73 @@
 # Implementation Status
 
+## Post-v0.1.0 localization milestone plan
+
+1. Preserve the verified `v0.1.0` commit as an annotated Git tag and GitHub Release before
+   changing product behavior.
+2. Add Russian to the supported speech and output-language model without changing Groq
+   credential handling or provider boundaries.
+3. Add a versioned interface-language preference: System default, English, Ukrainian, or
+   Russian. Resolve supported Windows locales automatically and fall back to English for every
+   unsupported Windows locale.
+4. Centralize user-visible strings in one localization catalog and update the settings dialog,
+   floating control, tray menu, and runtime notices without changing the existing interaction
+   model.
+5. Migrate schema v4 settings to v5 without losing microphone, language, formatting, paste, or
+   floating-button preferences.
+6. Add migration, locale-resolution, catalog-completeness, and Qt UI tests; run all repository
+   quality gates and the opt-in live Groq language smoke test.
+7. Record evidence and residual risks, commit, push, and verify GitHub CI.
+
+## Post-v0.1.0 localization milestone completion
+
+- Date: 2026-08-13
+- Release checkpoint: annotated tag and GitHub Release `v0.1.0` preserve commit `fe13115` as
+  "First stable working version" before localization changes. Release URL:
+  https://github.com/teremno/WisperNext_v3/releases/tag/v0.1.0
+- Scope: Russian was added as the sixteenth fixed speech/output language. The application UI is
+  now available in English, Ukrainian, and Russian through one centralized catalog covering the
+  settings dialog, tray menu, floating-button accessibility labels, and runtime notices.
+- Locale policy: a manual UI-language preference overrides Windows. System mode maps `en-*`,
+  `uk-*`, and `ru-*` to their supported interface catalogs; every other or malformed locale falls
+  back deterministically to English.
+- Migration: settings schema v5 adds nullable `interface_language`; complete schema v4 settings
+  migrate to System mode without losing microphone, position, hotkey, paste, formatting, model,
+  or input/output-language preferences.
+- Live provider evidence: one credential-backed Groq request translated a short English test into
+  Russian successfully. Only pass/fail and typed failure status were printed; neither API-key nor
+  response text was logged.
+- Regression prevention: every configured `LanguageCode` now has a tested Groq prompt name, every
+  content language has a name in every UI catalog, and all UI catalogs must expose identical keys.
+
+### Commands run
+
+```powershell
+.venv\Scripts\python.exe -m ruff format --check .
+.venv\Scripts\python.exe -m ruff check .
+.venv\Scripts\python.exe -m mypy src
+.venv\Scripts\python.exe -m pytest -m "not hardware"
+.venv\Scripts\python.exe -c "<one redacted-output Russian Groq translation smoke>"
+```
+
+### Automated and live results
+
+- `ruff format --check`: passed; 101 files formatted.
+- `ruff check`: passed.
+- `mypy src`: passed with no issues in 40 source files.
+- `pytest -m "not hardware"`: 342 passed, 1 hardware test deselected.
+- Live Groq Russian translation: passed with no fallback and no provider failure.
+- The repository PowerShell wrapper could not find bare `python` in the current shell `PATH`; the
+  same commands were run directly through the project virtual environment and passed.
+
+### Residual risks and unverified assumptions
+
+- Changing the actual Windows display language was intentionally not performed. Locale resolution
+  is covered with `en_US`, `uk_UA`, `ru-RU`, unsupported Chinese/German, and empty-locale tests.
+- Qt widgets are exercised offscreen in all three localization paths, but a visual/manual review on
+  a Russian-language Windows installation remains useful before a future packaged release.
+- The source release still has no production installer, Start Menu entry, or uninstall workflow;
+  those packaging limitations are unchanged from `v0.1.0`.
+
 ## Current milestone
 
 Milestone 7 — Groq formatting and multilingual output

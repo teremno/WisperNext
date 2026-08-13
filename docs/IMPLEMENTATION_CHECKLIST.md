@@ -44,6 +44,7 @@
 - [x] Italian
 - [x] Portuguese
 - [x] Ukrainian
+- [x] Russian
 - [x] Polish
 - [x] Dutch
 - [x] Turkish
@@ -52,6 +53,9 @@
 - [x] Japanese
 - [x] Korean
 - [x] Chinese (Simplified)
+- [x] Interface is available in English, Ukrainian, and Russian.
+- [x] Supported Windows interface locales are selected automatically.
+- [x] Unsupported Windows interface locales fall back to English.
 
 ## Delivery
 

@@ -125,7 +125,7 @@ class DictationController:
         try:
             devices = self._microphone_catalog.list_devices()
         except Exception:
-            self._ui_dispatcher(lambda: on_error("Не вдалося отримати список мікрофонів."))
+            self._ui_dispatcher(lambda: on_error("notice.microphones_failed"))
             return
         self._ui_dispatcher(lambda: on_loaded(devices))
 
@@ -147,7 +147,7 @@ class DictationController:
         try:
             self._settings_store.save(settings)
         except (SettingsStorageError, ValueError):
-            self._ui_dispatcher(lambda: on_error("Не вдалося зберегти налаштування."))
+            self._ui_dispatcher(lambda: on_error("notice.settings_save_failed"))
             return
         with self._lock:
             self._settings = settings
@@ -159,9 +159,7 @@ class DictationController:
         try:
             self._settings_store.save(updated)
         except SettingsStorageError:
-            self._ui_dispatcher(
-                lambda: self._notice_listener("Не вдалося зберегти позицію кнопки.")
-            )
+            self._ui_dispatcher(lambda: self._notice_listener("notice.button_position_failed"))
             return
         with self._lock:
             self._settings = updated
@@ -248,9 +246,7 @@ class DictationController:
                 )
                 final_text = processed.text
                 if processed.used_fallback:
-                    self._notice(
-                        "Форматування або переклад не вдалися. Використано початковий текст."
-                    )
+                    self._notice("notice.processing_fallback")
 
             self._transition(ApplicationState.DELIVERING_TEXT)
             delivery = self._clipboard_delivery.deliver(final_text)
@@ -328,9 +324,9 @@ def _transcription_error(failure: TranscriptionFailureCode | None) -> AppError:
 
 def _auto_paste_notice(status: AutoPasteStatus) -> str:
     if status is AutoPasteStatus.TARGET_CHANGED:
-        return "Текст у буфері: активне поле змінилося під час обробки."
+        return "notice.paste.target_changed"
     if status is AutoPasteStatus.WISPER_HAS_FOCUS:
-        return "Текст у буфері: активним стало вікно WisperNext."
+        return "notice.paste.wisper_focus"
     if status is AutoPasteStatus.INPUT_REJECTED:
-        return "Текст у буфері: Windows відхилив автоматичне вставлення."
-    return "Текст у буфері: цільове поле для вставлення недоступне."
+        return "notice.paste.input_rejected"
+    return "notice.paste.target_unavailable"

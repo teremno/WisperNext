@@ -6,6 +6,7 @@ import pytest
 from wispernext.domain import MicrophoneSelectionMode
 from wispernext.infrastructure.config import (
     CURRENT_SCHEMA_VERSION,
+    InterfaceLanguage,
     JsonSettingsStore,
     LanguageCode,
     Settings,
@@ -27,6 +28,7 @@ def test_settings_round_trip_preserves_typed_values(tmp_path: Path) -> None:
         floating_button_x=-320,
         floating_button_y=180,
         max_recording_seconds=120,
+        interface_language=InterfaceLanguage.RUSSIAN,
         input_language=LanguageCode.UKRAINIAN,
         output_language=LanguageCode.ENGLISH,
     )
@@ -70,6 +72,7 @@ def test_version_one_manual_microphone_is_migrated_without_losing_preference() -
     payload.pop("microphone_selection_mode")
     payload.pop("floating_button_x")
     payload.pop("floating_button_y")
+    payload.pop("interface_language")
 
     migrated = decode_settings(payload)
 
@@ -83,6 +86,7 @@ def test_version_two_settings_migrate_with_unset_button_position() -> None:
     payload["schema_version"] = 2
     payload.pop("floating_button_x")
     payload.pop("floating_button_y")
+    payload.pop("interface_language")
 
     migrated = decode_settings(payload)
 
@@ -95,11 +99,24 @@ def test_version_three_settings_migrate_deprecated_default_text_model() -> None:
     payload = encode_settings(Settings())
     payload["schema_version"] = 3
     payload["text_model"] = "llama-3.3-70b-versatile"
+    payload.pop("interface_language")
 
     migrated = decode_settings(payload)
 
     assert migrated.schema_version == CURRENT_SCHEMA_VERSION
     assert migrated.text_model == "openai/gpt-oss-120b"
+
+
+def test_version_four_settings_migrate_to_system_interface_language() -> None:
+    payload = encode_settings(Settings(output_language=LanguageCode.RUSSIAN))
+    payload["schema_version"] = 4
+    payload.pop("interface_language")
+
+    migrated = decode_settings(payload)
+
+    assert migrated.schema_version == CURRENT_SCHEMA_VERSION
+    assert migrated.interface_language is None
+    assert migrated.output_language is LanguageCode.RUSSIAN
 
 
 @pytest.mark.parametrize(
@@ -115,6 +132,7 @@ def test_version_three_settings_migrate_deprecated_default_text_model() -> None:
         {"max_recording_seconds": 4},
         {"max_recording_seconds": 1_801},
         {"input_language": "xx"},
+        {**encode_settings(Settings()), "interface_language": "xx"},
         {"hotkey": ""},
         {**encode_settings(Settings()), "hotkey": "A"},
         {**encode_settings(Settings()), "hotkey": "7"},
@@ -192,6 +210,7 @@ def test_settings_schema_contains_all_required_languages() -> None:
     assert {language.value for language in LanguageCode} == {
         "en",
         "uk",
+        "ru",
         "de",
         "fr",
         "es",

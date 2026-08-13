@@ -42,6 +42,7 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 "src/wispernext/application/controller.py" = ["RUF001"]
 "src/wispernext/ui/floating_button.py" = ["RUF001"]
+"src/wispernext/ui/i18n.py" = ["RUF001"]
 "src/wispernext/ui/qt_runtime.py" = ["RUF001"]
 "src/wispernext/ui/settings_dialog.py" = ["RUF001"]
 
