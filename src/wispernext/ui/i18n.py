@@ -63,6 +63,9 @@ _ENGLISH: Final[dict[str, str]] = {
     "notice.button_position_failed": "Could not save the button position.",
     "notice.processing_fallback": "Formatting or translation failed. The original text was used.",
     "notice.hotkey_unavailable": "The global hotkey is in use. The microphone button still works.",
+    "notice.diagnostics_unavailable": (
+        "Dictation works, but the private diagnostic journal is unavailable."
+    ),
     "notice.paste.target_changed": (
         "Text is in the clipboard: the active field changed during processing."
     ),
@@ -122,6 +125,9 @@ _UKRAINIAN: Final[dict[str, str]] = {
         "Форматування або переклад не вдалися. Використано початковий текст."
     ),
     "notice.hotkey_unavailable": "Глобальна клавіша зайнята. Кнопка мікрофона працює.",
+    "notice.diagnostics_unavailable": (
+        "Диктування працює, але приватний журнал діагностики недоступний."
+    ),
     "notice.paste.target_changed": "Текст у буфері: активне поле змінилося під час обробки.",
     "notice.paste.wisper_focus": "Текст у буфері: активним стало вікно WisperNext.",
     "notice.paste.input_rejected": "Текст у буфері: Windows відхилив автоматичне вставлення.",
@@ -179,6 +185,9 @@ _RUSSIAN: Final[dict[str, str]] = {
         "Форматирование или перевод не удались. Использован исходный текст."
     ),
     "notice.hotkey_unavailable": "Глобальная клавиша занята. Кнопка микрофона работает.",
+    "notice.diagnostics_unavailable": (
+        "Диктовка работает, но приватный журнал диагностики недоступен."
+    ),
     "notice.paste.target_changed": "Текст в буфере: активное поле изменилось во время обработки.",
     "notice.paste.wisper_focus": "Текст в буфере: активным стало окно WisperNext.",
     "notice.paste.input_rejected": "Текст в буфере: Windows отклонила автоматическую вставку.",

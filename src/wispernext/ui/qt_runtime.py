@@ -115,6 +115,7 @@ def run_desktop_application(
         state_listener=lambda snapshot: _render_state(app, button, snapshot),
         notice_listener=lambda key: button.show_notice(tr(active_language[0], key)),
         ui_dispatcher=dispatcher.dispatch,
+        diagnostic_journal=services.diagnostic_journal,
     )
     controller_holder.append(controller)
     settings_dialogs: list[SettingsDialog] = []

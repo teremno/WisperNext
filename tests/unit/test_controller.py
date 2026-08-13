@@ -3,6 +3,7 @@ from collections.abc import Callable
 from wispernext.application import (
     ClipboardDeliveryResult,
     ClipboardDeliveryStatus,
+    DiagnosticEvent,
     DictationController,
     FocusContext,
     TextProcessingFailureCode,
@@ -140,6 +141,16 @@ class FakeTextProcessing:
         return self.result or TextProcessingResult(transcript, False, False)
 
 
+class FakeDiagnosticJournal:
+    def __init__(self, succeeds: bool = True) -> None:
+        self.succeeds = succeeds
+        self.events: list[DiagnosticEvent] = []
+
+    def record(self, event: DiagnosticEvent) -> bool:
+        self.events.append(event)
+        return self.succeeds
+
+
 def build_controller(
     *,
     scheduler: ImmediateScheduler | QueuedScheduler,
@@ -148,6 +159,7 @@ def build_controller(
     text_processing: FakeTextProcessing | None = None,
     auto_paste: FakeAutoPaste | None = None,
     notices: list[str] | None = None,
+    diagnostic_journal: FakeDiagnosticJournal | None = None,
 ) -> tuple[
     DictationController,
     ApplicationStateMachine,
@@ -179,6 +191,7 @@ def build_controller(
         notice_listener=(notices if notices is not None else []).append,
         ui_dispatcher=lambda callback: callback(),
         scheduler=scheduler,
+        diagnostic_journal=diagnostic_journal,
     )
     return (
         controller,
@@ -307,6 +320,51 @@ def test_processing_failure_delivers_raw_transcript_and_surfaces_fallback() -> N
 
     assert clipboard.texts == ["recognized"]
     assert notices == ["notice.processing_fallback"]
+
+
+def test_processing_and_completion_share_one_private_diagnostic_operation_id() -> None:
+    journal = FakeDiagnosticJournal()
+    controller, *_rest = build_controller(
+        scheduler=ImmediateScheduler(),
+        settings=Settings(
+            input_language=LanguageCode.UKRAINIAN,
+            output_language=LanguageCode.RUSSIAN,
+        ),
+        text_processing=FakeTextProcessing(
+            TextProcessingResult("Переведено.", True, False, attempts=2)
+        ),
+        diagnostic_journal=journal,
+    )
+    controller.start()
+
+    controller.toggle_recording()
+    controller.toggle_recording()
+
+    assert [event.name.value for event in journal.events] == [
+        "text_processing",
+        "dictation_complete",
+    ]
+    assert len({event.operation_id for event in journal.events}) == 1
+    assert journal.events[0].input_language == "uk"
+    assert journal.events[0].output_language == "ru"
+    assert journal.events[0].attempts == 2
+
+
+def test_unavailable_journal_warns_once_without_stopping_dictation() -> None:
+    notices: list[str] = []
+    journal = FakeDiagnosticJournal(succeeds=False)
+    controller, machine, *_rest = build_controller(
+        scheduler=ImmediateScheduler(),
+        notices=notices,
+        diagnostic_journal=journal,
+    )
+    controller.start()
+
+    controller.toggle_recording()
+    controller.toggle_recording()
+
+    assert machine.snapshot().state is ApplicationState.IDLE
+    assert notices.count("notice.diagnostics_unavailable") == 1
 
 
 def test_button_position_is_saved_on_worker_without_changing_domain_state() -> None:

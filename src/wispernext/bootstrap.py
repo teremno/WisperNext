@@ -8,6 +8,7 @@ from pathlib import Path
 from wispernext.application import (
     AutoPasteService,
     ClipboardDeliveryService,
+    DiagnosticJournal,
     PastePort,
     TextProcessingService,
     TranscriptionService,
@@ -18,6 +19,7 @@ from wispernext.audio.session import AudioSessionService
 from wispernext.domain import ApplicationStateMachine
 from wispernext.groq import GroqTextProcessingTransportFactory, GroqTranscriptionTransportFactory
 from wispernext.infrastructure.config import JsonSettingsStore
+from wispernext.infrastructure.diagnostics import RotatingDiagnosticJournal
 from wispernext.infrastructure.paths import UserPaths
 from wispernext.infrastructure.secrets import (
     ChainedSecretProvider,
@@ -43,6 +45,7 @@ class ApplicationServices:
     clipboard_delivery: ClipboardDeliveryService
     auto_paste: AutoPasteService
     focus_port: PastePort
+    diagnostic_journal: DiagnosticJournal
 
 
 def build_application_services(
@@ -52,7 +55,9 @@ def build_application_services(
     home: Path | None = None,
 ) -> ApplicationServices:
     """Create fresh service instances without loading files or opening resources."""
-    resolved_path = settings_path or UserPaths.resolve(environ, home).settings_file
+    user_paths = UserPaths.resolve(environ, home)
+    resolved_path = settings_path or user_paths.settings_file
+    logs_dir = resolved_path.parent / "logs" if settings_path is not None else user_paths.logs_dir
     audio_backend = SoundDeviceBackend()
     secret_provider: SecretProvider
     if environ is None:
@@ -80,4 +85,5 @@ def build_application_services(
         clipboard_delivery=ClipboardDeliveryService(WindowsClipboard()),
         auto_paste=AutoPasteService(paste_adapter, wisper_process_id=os.getpid()),
         focus_port=paste_adapter,
+        diagnostic_journal=RotatingDiagnosticJournal(logs_dir / "diagnostics.jsonl"),
     )

@@ -132,6 +132,82 @@ def test_translation_accepts_requested_output_language() -> None:
     assert result.text == "Hello, this is a test."
     assert result.transformed
     assert not result.used_fallback
+    assert result.attempts == 1
+
+
+def test_unchanged_ukrainian_to_russian_translation_is_retried_once() -> None:
+    source = "Я говорю українською мовою."
+
+    class RetryTransport(FakeTransport):
+        def __init__(self) -> None:
+            super().__init__(ProviderTextResult(source, "ru"))
+            self.results = [
+                ProviderTextResult(source, "ru"),
+                ProviderTextResult("Я говорю на русском языке.", "ru"),
+            ]
+
+        def process(
+            self,
+            transcript: str,
+            *,
+            model: str,
+            mode: TextProcessingMode,
+            target_language: LanguageCode | None,
+        ) -> ProviderTextResult:
+            self.calls.append((model, mode, target_language))
+            return self.results.pop(0)
+
+    transport = RetryTransport()
+    processor = TextProcessingService(FakeSecretProvider(), FakeFactory(transport))
+
+    result = processor.process(
+        source,
+        model="model",
+        input_language=LanguageCode.UKRAINIAN,
+        output_language=LanguageCode.RUSSIAN,
+        safe_formatting=True,
+    )
+
+    assert result.text == "Я говорю на русском языке."
+    assert result.transformed
+    assert not result.used_fallback
+    assert result.attempts == 2
+    assert len(transport.calls) == 2
+
+
+def test_two_invalid_ukrainian_to_russian_results_use_visible_fallback_category() -> None:
+    source = "Перевіряю стабільність перекладу."
+    processor, factory = service(ProviderTextResult(source, "ru"))
+
+    result = processor.process(
+        source,
+        model="model",
+        input_language=LanguageCode.UKRAINIAN,
+        output_language=LanguageCode.RUSSIAN,
+        safe_formatting=True,
+    )
+
+    assert result.text == source
+    assert result.used_fallback
+    assert result.failure is TextProcessingFailureCode.UNSAFE_RESPONSE
+    assert result.attempts == 2
+    assert len(factory.transport.calls) == 2
+
+
+def test_russian_result_with_ukrainian_specific_characters_is_rejected() -> None:
+    processor, _factory = service(ProviderTextResult("Це нібито русский текст.", "ru"))
+
+    result = processor.process(
+        "Це український текст.",
+        model="model",
+        input_language=LanguageCode.UKRAINIAN,
+        output_language=LanguageCode.RUSSIAN,
+        safe_formatting=False,
+    )
+
+    assert result.used_fallback
+    assert result.failure is TextProcessingFailureCode.UNSAFE_RESPONSE
+    assert result.attempts == 2
 
 
 def test_missing_key_preserves_raw_transcript() -> None:

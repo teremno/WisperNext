@@ -20,4 +20,6 @@ def test_composition_root_is_side_effect_free_and_returns_fresh_services(tmp_pat
     assert first.text_processing is not second.text_processing
     assert first.clipboard_delivery is not second.clipboard_delivery
     assert first.auto_paste is not second.auto_paste
+    assert first.diagnostic_journal is not second.diagnostic_journal
+    assert first.diagnostic_journal.path == settings_path.parent / "logs" / "diagnostics.jsonl"
     assert not settings_path.parent.exists()

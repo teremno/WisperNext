@@ -12,6 +12,13 @@ from wispernext.application.delivery import (
     FocusContext,
     PastePort,
 )
+from wispernext.application.diagnostics import (
+    DiagnosticEvent,
+    DiagnosticEventName,
+    DiagnosticJournal,
+    DiagnosticOutcome,
+    NullDiagnosticJournal,
+)
 from wispernext.application.text_processing import (
     ProviderTextResult,
     TextProcessingFailureCode,
@@ -41,8 +48,13 @@ __all__ = [
     "ClipboardDeliveryResult",
     "ClipboardDeliveryService",
     "ClipboardDeliveryStatus",
+    "DiagnosticEvent",
+    "DiagnosticEventName",
+    "DiagnosticJournal",
+    "DiagnosticOutcome",
     "DictationController",
     "FocusContext",
+    "NullDiagnosticJournal",
     "PastePort",
     "ProviderFailureCode",
     "ProviderTextResult",

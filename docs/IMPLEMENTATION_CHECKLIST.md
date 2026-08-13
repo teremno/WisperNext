@@ -64,6 +64,15 @@
 - [x] Failure preserves text in clipboard when possible.
 - [x] No aggressive focus stealing or arbitrary UI automation.
 
+## Private diagnostics
+
+- [x] Diagnostic events use an explicit metadata allowlist and contain no dictated text, audio,
+  clipboard content, API keys, window titles, or target-application names.
+- [x] One operation ID correlates processing and completion/failure events.
+- [x] Journal storage is bounded to five rotating 1 MiB JSONL files.
+- [x] Journal failure does not stop dictation and is surfaced once to the user.
+- [x] Invalid cross-language output is retried once and then uses an explicit safe fallback.
+
 ## Packaging and release
 
 - [ ] Desktop shortcut is created.

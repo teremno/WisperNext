@@ -111,7 +111,9 @@ def _messages(
             raise ValueError("Translation requires a target language.")
         task = (
             f"Translate faithfully into {_LANGUAGE_NAMES[target_language]}. Preserve meaning, "
-            "names, numbers, and questions. Never answer, summarize, explain, or add facts."
+            "names, numbers, and questions. The output text must actually be written in the "
+            "target language; do not copy the source unchanged. Never answer, summarize, "
+            "explain, or add facts."
         )
     else:
         task = (

@@ -1,5 +1,65 @@
 # Implementation Status
 
+## Translation reliability and private diagnostics plan
+
+1. Add a privacy-safe structured journal containing only bounded event categories, operation IDs,
+   language codes, retry counts, and typed failures—never audio, transcript/output text, clipboard
+   content, API keys, window titles, or application names.
+2. Store the journal under the existing per-user WisperNext logs directory as rotating JSON Lines,
+   capped at five 1 MiB files; journal failure must not stop dictation.
+3. Reject a fixed cross-language translation that remains unchanged or contains source-language-
+   specific characters, retry that safe idempotent Groq operation once, and report a visible
+   fallback if both results are invalid.
+4. Correlate processing and final dictation outcomes with one random operation ID so intermittent
+   failures can be diagnosed without recording dictated content.
+5. Add contract tests for privacy, rotation, fail-open behavior, unchanged translation detection,
+   bounded retry, and controller events; run all quality gates and update evidence.
+
+## Translation reliability and private diagnostics completion
+
+- Date: 2026-08-13
+- Root cause class addressed: the provider's self-reported output-language code was previously
+  trusted after only structural and length checks. A response could therefore claim `ru` while
+  leaving fixed Ukrainian input unchanged, and WisperNext would treat it as successful.
+- Reliability fix: fixed cross-language output is now rejected when normalized text is unchanged.
+  For the ambiguous Ukrainian/Russian pair, target output retaining source-specific characters is
+  also rejected. The prompt explicitly requires actual target-language text.
+- Retry policy: an invalid translation response is retried exactly once using the same safe,
+  idempotent text operation. Provider/network failures continue to use the SDK's bounded transient
+  retry policy and are not multiplied by this semantic retry.
+- User-visible behavior: after two invalid responses, the original transcript remains safe in the
+  clipboard and a localized fallback notice is emitted after the application returns to Idle, so it
+  is no longer immediately overwritten by a later state tooltip.
+- Diagnostic journal: `%LOCALAPPDATA%\WisperNext\logs\diagnostics.jsonl`, plus at most four rotated
+  backups. Each file is capped at 1 MiB. Records are compact JSON Lines containing only UTC time,
+  random operation ID, bounded event/outcome categories, input/output language codes, typed failure,
+  and attempt count.
+- Privacy boundary: event types expose no field for transcript/output text, audio, API keys,
+  clipboard content, window titles, or target-application names. Journal write failure returns a
+  status, never stops dictation, and produces one localized notice per application run.
+
+### Verification
+
+- `ruff format --check`: 104 files formatted.
+- `ruff check`: passed.
+- `mypy src`: passed with no issues in 42 source files.
+- `pytest -m "not hardware"`: 350 passed, 1 hardware test deselected.
+- Live Groq matrix: 10 correctly Unicode-encoded Ukrainian phrases translated to Russian; 10/10
+  were transformed on the first attempt, with no fallback, failure, unchanged output, or retained
+  Ukrainian-specific character. Response text and API-key content were not printed or persisted.
+- A discarded PowerShell diagnostic run corrupted Cyrillic before the application boundary; it was
+  identified by encoding evidence, was not counted, and was repeated using ASCII-safe Unicode
+  escapes.
+
+### Residual risks
+
+- Closely related languages can produce legitimately identical very short phrases; identical fixed
+  cross-language output is conservatively retried and may fall back even when no visible character
+  change was linguistically necessary.
+- Provider behavior remains external and can change. The bounded journal now provides enough
+  privacy-safe evidence to distinguish semantic rejection from timeout, rate limit, authentication,
+  or other typed failures.
+
 ## Post-v0.1.0 localization milestone plan
 
 1. Preserve the verified `v0.1.0` commit as an annotated Git tag and GitHub Release before

@@ -6,6 +6,7 @@ from contextlib import suppress
 from dataclasses import replace
 from threading import RLock
 from typing import Protocol
+from uuid import uuid4
 
 from wispernext.application.delivery import (
     AutoPasteService,
@@ -13,6 +14,13 @@ from wispernext.application.delivery import (
     ClipboardDeliveryService,
     FocusContext,
     PastePort,
+)
+from wispernext.application.diagnostics import (
+    DiagnosticEvent,
+    DiagnosticEventName,
+    DiagnosticJournal,
+    DiagnosticOutcome,
+    NullDiagnosticJournal,
 )
 from wispernext.application.text_processing import TextProcessingService, processing_mode
 from wispernext.application.transcription import TranscriptionFailureCode, TranscriptionService
@@ -73,6 +81,7 @@ class DictationController:
         notice_listener: Callable[[str], None],
         ui_dispatcher: UiDispatcher,
         scheduler: TaskScheduler | None = None,
+        diagnostic_journal: DiagnosticJournal | None = None,
     ) -> None:
         self._state_machine = state_machine
         self._microphone_catalog = microphone_catalog
@@ -87,8 +96,11 @@ class DictationController:
         self._notice_listener = notice_listener
         self._ui_dispatcher = ui_dispatcher
         self._scheduler = scheduler or ThreadTaskScheduler()
+        self._diagnostic_journal = diagnostic_journal or NullDiagnosticJournal()
         self._settings = initial_settings
         self._recording_context: FocusContext | None = None
+        self._operation_id: str | None = None
+        self._journal_warning_sent = False
         self._lock = RLock()
 
     def start(self) -> None:
@@ -176,6 +188,7 @@ class DictationController:
             if not result.accepted:
                 return
             if result.current_state is ApplicationState.OPENING_AUDIO:
+                self._operation_id = uuid4().hex
                 self._recording_context = self._focus_port.current_focus()
                 self._scheduler.schedule(self._open_audio)
             elif result.current_state is ApplicationState.STOPPING_AUDIO:
@@ -230,6 +243,7 @@ class DictationController:
                 return
 
             final_text = transcription.text
+            processing_fallback = False
             mode = processing_mode(
                 self._settings.input_language,
                 self._settings.output_language,
@@ -245,8 +259,17 @@ class DictationController:
                     safe_formatting=self._settings.safe_formatting,
                 )
                 final_text = processed.text
-                if processed.used_fallback:
-                    self._notice("notice.processing_fallback")
+                processing_fallback = processed.used_fallback
+                self._record_diagnostic(
+                    DiagnosticEventName.TEXT_PROCESSING,
+                    (
+                        DiagnosticOutcome.FALLBACK
+                        if processed.used_fallback
+                        else DiagnosticOutcome.SUCCESS
+                    ),
+                    failure=processed.failure.value if processed.failure else None,
+                    attempts=processed.attempts,
+                )
 
             self._transition(ApplicationState.DELIVERING_TEXT)
             delivery = self._clipboard_delivery.deliver(final_text)
@@ -263,8 +286,15 @@ class DictationController:
                 recording_context=self._recording_context,
                 application_state=ApplicationState.IDLE,
             )
+            if processing_fallback:
+                self._notice("notice.processing_fallback")
             if self._settings.auto_paste and not paste_result.pasted:
                 self._notice(_auto_paste_notice(paste_result.status))
+            self._record_diagnostic(
+                DiagnosticEventName.DICTATION_COMPLETE,
+                DiagnosticOutcome.SUCCESS,
+            )
+            self._operation_id = None
         except AudioSessionError:
             self._fail(AppError(ErrorCode.STREAM_ERROR, "Не вдалося завершити запис.", True))
         except Exception:
@@ -286,6 +316,11 @@ class DictationController:
             self._fail_locked(error)
 
     def _fail_locked(self, error: AppError) -> None:
+        self._record_diagnostic(
+            DiagnosticEventName.DICTATION_FAILURE,
+            DiagnosticOutcome.FAILED,
+            failure=error.code.value,
+        )
         self._state_machine.fail(error)
         self._emit_locked()
 
@@ -295,6 +330,38 @@ class DictationController:
 
     def _notice(self, message: str) -> None:
         self._ui_dispatcher(lambda: self._notice_listener(message))
+
+    def _record_diagnostic(
+        self,
+        name: DiagnosticEventName,
+        outcome: DiagnosticOutcome,
+        *,
+        failure: str | None = None,
+        attempts: int | None = None,
+    ) -> None:
+        operation_id = self._operation_id or uuid4().hex
+        saved = self._diagnostic_journal.record(
+            DiagnosticEvent(
+                operation_id=operation_id,
+                name=name,
+                outcome=outcome,
+                input_language=(
+                    self._settings.input_language.value
+                    if self._settings.input_language is not None
+                    else None
+                ),
+                output_language=(
+                    self._settings.output_language.value
+                    if self._settings.output_language is not None
+                    else None
+                ),
+                failure=failure,
+                attempts=attempts,
+            )
+        )
+        if not saved and not self._journal_warning_sent:
+            self._journal_warning_sent = True
+            self._notice("notice.diagnostics_unavailable")
 
 
 def _audio_error(category: AudioCategory) -> AppError:
