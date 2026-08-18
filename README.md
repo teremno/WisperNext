@@ -122,7 +122,7 @@ This section is for contributors who want to modify WisperNext. An AI coding age
 
 ```text
 Start with AGENT_START_PROMPT.md
-
+```
 
 **## Feedback and ideas
 
