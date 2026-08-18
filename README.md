@@ -123,7 +123,8 @@ This section is for contributors who want to modify WisperNext. An AI coding age
 ```text
 Start with AGENT_START_PROMPT.md
 
-## Feedback and ideas
+
+**## Feedback and ideas
 
 Feature requests, additional-language requests, bug reports, and new ideas are welcome. Contact
 the author on X: **[S.O.V (@sovpoker)](https://x.com/sovpoker)**.
@@ -139,3 +140,4 @@ WisperNext was built to remove the need to switch between separate dictation, tr
 text-editing tools: speak naturally and receive polished text in the language you need.
 
 Licensed under the [MIT License](LICENSE).
+**
