@@ -112,17 +112,16 @@ Create a desktop shortcut with:
 powershell -ExecutionPolicy Bypass -File .\scripts\create_development_shortcut.ps1
 ```
 
-## Development with Codex
+## Development with an AI Coding Agent
+
+This section is for contributors who want to modify WisperNext. An AI coding agent is not required to install or use the application.
 
 1. Clone the repository.
-2. Open the cloned `WisperNext` folder as a workspace in OpenAI Codex.
-3. Start a new task and send this exact instruction:
+2. Open the cloned `WisperNext` folder in an AI coding agent that can work with local files and Git.
+3. Start a new task and send this instruction:
 
 ```text
 Start with AGENT_START_PROMPT.md
-```
-
-Codex is only needed for development, not for normal use.
 
 ## Feedback and ideas
 
