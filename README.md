@@ -63,7 +63,7 @@ remains available.
 ## Requirements
 
 - Windows 10 or Windows 11 — currently tested on Windows 11;
-- Python 3.12 or 3.13;
+- Python 3.12 or 3.13 (64-bit) — both versions are supported and tested;
 - Git;
 - a [Groq API key](https://console.groq.com/keys).
 
@@ -77,10 +77,19 @@ Open PowerShell and run:
 git clone https://github.com/teremno/WisperNext.git
 cd WisperNext
 
-py -3.12 -m venv .venv
+py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -e .
 ```
+
+Python 3.13 is recommended. If it is not installed but Python 3.12 is available, replace only
+the environment-creation command with:
+
+```powershell
+py -3.12 -m venv .venv
+```
+
+Python 3.14 and later are not supported yet.
 
 ## Store the Groq API key
 
