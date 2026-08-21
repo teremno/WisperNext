@@ -1,7 +1,9 @@
 """Bounded Win32 Unicode clipboard and single-paste adapters."""
 
 import ctypes
+from collections.abc import Sequence
 from ctypes import wintypes
+from typing import ClassVar
 
 from wispernext.application.delivery import ClipboardAdapterError, FocusContext
 
@@ -43,7 +45,7 @@ class _HARDWAREINPUT(ctypes.Structure):
 
 
 class _INPUTUNION(ctypes.Union):
-    _fields_ = [  # noqa: RUF012
+    _fields_: ClassVar[Sequence[tuple[str, type[ctypes.Structure]]]] = [
         ("mi", _MOUSEINPUT),
         ("ki", _KEYBDINPUT),
         ("hi", _HARDWAREINPUT),
