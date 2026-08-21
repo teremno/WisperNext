@@ -65,25 +65,33 @@ remains available.
 - Windows 10 or Windows 11 — currently tested on Windows 11;
 - Python 3.12 or 3.13 (64-bit) — both versions are supported and tested;
 - Git;
-- a [Groq API key](https://console.groq.com/keys).
+- a free [Groq API key](https://console.groq.com/keys).
 
 A production installer is not available yet. The current version is installed from source.
 
-## Install
+## Install from source
 
-Open PowerShell and run:
+Open PowerShell. For every code block below, click its copy button, paste it into PowerShell, and
+press Enter.
+
+### 1. Download WisperNext
 
 ```powershell
 git clone https://github.com/teremno/WisperNext.git
 cd WisperNext
-
-py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e .
 ```
 
-Python 3.13 is recommended. If it is not installed but Python 3.12 is available, replace only
-the environment-creation command with:
+### 2. Create the Python environment — choose one option only
+
+**Option A — recommended: Python 3.13.** Copy, paste, and run this command first:
+
+```powershell
+py -3.13 -m venv .venv
+```
+
+If it succeeds, continue to step 3. **Do not run the Python 3.12 command.**
+
+**Option B — use only if Option A says `No suitable Python runtime found`.** Copy, paste, and run:
 
 ```powershell
 py -3.12 -m venv .venv
@@ -91,29 +99,58 @@ py -3.12 -m venv .venv
 
 Python 3.14 and later are not supported yet.
 
-## Store the Groq API key
+### 3. Install the application
 
-Create a key in the [Groq Console](https://console.groq.com/keys), then run:
+```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e .
+```
+
+When the last line says `Successfully installed wispernext`, installation is complete.
+
+## Get a free Groq API key
+
+1. Open the official [Groq API Keys page](https://console.groq.com/keys).
+2. Create a Groq account or sign in. Groq's Free tier lets you create an API key without paying.
+3. Click **Create API Key**, give it any name, then copy the new key.
+4. Keep the key private. Do not send it to anyone or add it to a file in the project.
+
+## Store the API key safely in Windows
+
+Run these commands one at a time in the same PowerShell window:
 
 ```powershell
 $secureKey = Read-Host "Enter your Groq API key" -AsSecureString
+```
+
+PowerShell now displays `Enter your Groq API key:`. Paste the key you copied, then press Enter.
+The characters are hidden on purpose.
+
+```powershell
 $env:WISPER_GROQ_API_KEY = [Net.NetworkCredential]::new("", $secureKey).Password
+```
 
+```powershell
 .\.venv\Scripts\python.exe .\scripts\migrate_groq_key_to_credential_manager.py
+```
 
+When PowerShell shows `"status": "stored_and_verified"`, the key is saved safely. Finally run:
+
+```powershell
 Remove-Item Env:WISPER_GROQ_API_KEY
 ```
 
 The key is stored in Windows Credential Manager, not in application settings or diagnostic logs.
 
-## Launch
+## Launch WisperNext
 
 ```powershell
 .\.venv\Scripts\pythonw.exe -m wispernext
 ```
 
-After launch, use the floating button or `F8`. Right-click the floating button, or use the
-system-tray icon, to open Settings.
+Press Enter once. PowerShell does not show a success message; after a few seconds, the floating
+microphone button and a system-tray icon appear. You may then close PowerShell. Use the floating
+button or `F8`; right-click the button, or use the system-tray icon, to open Settings.
 
 Create a desktop shortcut with:
 
@@ -133,7 +170,7 @@ This section is for contributors who want to modify WisperNext. An AI coding age
 Start with AGENT_START_PROMPT.md
 ```
 
-**## Feedback and ideas
+## Feedback and ideas
 
 Feature requests, additional-language requests, bug reports, and new ideas are welcome. Contact
 the author on X: **[S.O.V (@sovpoker)](https://x.com/sovpoker)**.
