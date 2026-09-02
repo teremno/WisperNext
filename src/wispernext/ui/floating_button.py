@@ -1,7 +1,7 @@
 """Non-activating accessible floating microphone control."""
 
-import ctypes
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import StrEnum
 
 from PySide6.QtCore import QPoint, QPointF, Qt
@@ -18,13 +18,18 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from wispernext.domain import ApplicationState, StateSnapshot
 from wispernext.infrastructure.config import InterfaceLanguage
+from wispernext.platform.windows.floating_window import (
+    FloatingWindowAdapter,
+    WindowsFloatingWindowAdapter,
+)
 from wispernext.ui.i18n import tr
-from wispernext.ui.layout import ScreenRect, visible_button_position
+from wispernext.ui.layout import (
+    ScreenRect,
+    button_position_is_visible,
+    visible_button_position,
+)
 
 _BUTTON_SIZE = 64
-_GWL_EXSTYLE = -20
-_WS_EX_TOOLWINDOW = 0x00000080
-_WS_EX_NOACTIVATE = 0x08000000
 
 
 class ButtonVisualState(StrEnum):
@@ -34,6 +39,22 @@ class ButtonVisualState(StrEnum):
     PROCESSING = "processing"
     ERROR = "error"
     DISABLED = "disabled"
+
+
+class ButtonRecoveryReason(StrEnum):
+    MANUAL = "manual"
+    DISPLAY_CHANGED = "display_changed"
+    HIDDEN = "hidden"
+    MINIMIZED = "minimized"
+    OFF_SCREEN = "off_screen"
+    NOT_TOPMOST = "not_topmost"
+    NATIVE_STATE_ERROR = "native_state_error"
+
+
+@dataclass(frozen=True, slots=True)
+class ButtonRecoveryResult:
+    reason: ButtonRecoveryReason
+    succeeded: bool
 
 
 _STATE_KEYS = {
@@ -70,6 +91,7 @@ class FloatingMicrophoneButton(QWidget):
         position_callback: Callable[[int, int], None],
         settings_callback: Callable[[], None] | None = None,
         interface_language: InterfaceLanguage = InterfaceLanguage.ENGLISH,
+        native_window: FloatingWindowAdapter | None = None,
     ) -> None:
         flags = (
             Qt.WindowType.Tool
@@ -82,6 +104,8 @@ class FloatingMicrophoneButton(QWidget):
         self._position_callback = position_callback
         self._settings_callback = settings_callback
         self._interface_language = interface_language
+        self._native_window = native_window or WindowsFloatingWindowAdapter()
+        self._native_state_valid = True
         self._visual_state = ButtonVisualState.OPENING
         self._press_global: QPointF | None = None
         self._window_origin = QPoint()
@@ -130,7 +154,30 @@ class FloatingMicrophoneButton(QWidget):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
-        self._apply_no_activate_style()
+        self._native_state_valid = self._apply_native_state()
+
+    def recover_visibility(
+        self,
+        trigger: ButtonRecoveryReason | None = None,
+    ) -> ButtonRecoveryResult | None:
+        """Repair hidden, stranded, or demoted native state without taking focus."""
+        reasons = self._recovery_reasons()
+        if trigger is None and not reasons:
+            return None
+
+        reason = trigger or reasons[0]
+        if ButtonRecoveryReason.OFF_SCREEN in reasons:
+            self.place(self.x(), self.y())
+        if trigger is ButtonRecoveryReason.MANUAL and self.isVisible():
+            self.hide()
+        if self.isMinimized():
+            self.showNormal()
+        else:
+            self.show()
+        self.raise_()
+        self._native_state_valid = self._apply_native_state()
+        succeeded = not self._recovery_reasons()
+        return ButtonRecoveryResult(reason=reason, succeeded=succeeded)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         if self._settings_callback is None:
@@ -186,18 +233,49 @@ class FloatingMicrophoneButton(QWidget):
         self.setAccessibleDescription(label)
         self.setToolTip(label)
 
-    def _apply_no_activate_style(self) -> None:
-        user32 = ctypes.WinDLL("User32.dll", use_last_error=True)
-        user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
-        user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
-        user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
-        user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
+    def _recovery_reasons(self) -> tuple[ButtonRecoveryReason, ...]:
+        reasons: list[ButtonRecoveryReason] = []
         window_handle = int(self.winId())
-        style = user32.GetWindowLongPtrW(window_handle, _GWL_EXSTYLE)
-        user32.SetWindowLongPtrW(
-            window_handle,
-            _GWL_EXSTYLE,
-            style | _WS_EX_TOOLWINDOW | _WS_EX_NOACTIVATE,
+        if not self.isVisible():
+            reasons.append(ButtonRecoveryReason.HIDDEN)
+        if self.isMinimized():
+            reasons.append(ButtonRecoveryReason.MINIMIZED)
+        screens = self._screens()
+        if not button_position_is_visible(
+            self.x(), self.y(), button_size=_BUTTON_SIZE, screens=screens
+        ):
+            reasons.append(ButtonRecoveryReason.OFF_SCREEN)
+        try:
+            if (
+                not self._native_window.is_visible(window_handle)
+                and ButtonRecoveryReason.HIDDEN not in reasons
+            ):
+                reasons.append(ButtonRecoveryReason.HIDDEN)
+            if not self._native_window.is_topmost(window_handle):
+                reasons.append(ButtonRecoveryReason.NOT_TOPMOST)
+        except OSError:
+            reasons.append(ButtonRecoveryReason.NATIVE_STATE_ERROR)
+        if not self._native_state_valid and ButtonRecoveryReason.NATIVE_STATE_ERROR not in reasons:
+            reasons.append(ButtonRecoveryReason.NATIVE_STATE_ERROR)
+        return tuple(reasons)
+
+    def _apply_native_state(self) -> bool:
+        try:
+            self._native_window.apply_required_state(int(self.winId()))
+        except OSError:
+            return False
+        return True
+
+    @staticmethod
+    def _screens() -> tuple[ScreenRect, ...]:
+        return tuple(
+            ScreenRect(
+                screen.availableGeometry().x(),
+                screen.availableGeometry().y(),
+                screen.availableGeometry().width(),
+                screen.availableGeometry().height(),
+            )
+            for screen in QApplication.screens()
         )
 
 

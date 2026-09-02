@@ -13,6 +13,12 @@ Use `PySide6-Essentials` for Qt Core, Gui, and Widgets only. Render a fixed 64 l
 `WindowDoesNotAcceptFocus`, plus `WA_ShowWithoutActivating`. On Windows, reinforce the native
 window with `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE` after its handle exists.
 
+Reassert `HWND_TOPMOST` with `SetWindowPos` without activation whenever Windows loses the native
+topmost state. A low-frequency UI timer repairs only hidden, minimized, off-screen, or demoted
+state. Display topology changes trigger the same bounded recovery path, and the tray provides an
+explicit **Show microphone button** action. Recovery events contain only an allowlisted reason and
+success/failure status.
+
 Use a restrained industrial/utilitarian visual system: dark neutral surface, one high-contrast
 state accent, and a different geometric icon for ready, opening, recording, processing, error, and
 disabled. Expose an accessible name and state description. Do not animate or add status panels.
@@ -39,7 +45,7 @@ Dragging persists position on the background worker; a click sends only the shar
 ## Verification method
 
 - Unit tests cover every state mapping, accessibility metadata, no-focus/topmost flags, and
-  multi-monitor clamping.
+  multi-monitor clamping, plus idle and active recovery behavior.
 - A Windows smoke test drives a real OS mouse click and compares foreground window and field focus
   before/after.
 - Later hardware tests repeat the scenario in Notepad, a browser field, and another desktop field.

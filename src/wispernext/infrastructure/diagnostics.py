@@ -45,6 +45,7 @@ class RotatingDiagnosticJournal:
             "output_language": event.output_language,
             "failure": event.failure,
             "attempts": event.attempts,
+            "reason": event.reason.value if event.reason is not None else None,
         }
         encoded = (json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "\n").encode(
             "utf-8"

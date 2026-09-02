@@ -41,6 +41,7 @@ def test_journal_writes_only_allowlisted_privacy_safe_fields(tmp_path: Path) -> 
         "output_language": "ru",
         "failure": "unsafe_response",
         "attempts": 2,
+        "reason": None,
     }
     serialized = path.read_text(encoding="utf-8").casefold()
     assert "transcript" not in serialized

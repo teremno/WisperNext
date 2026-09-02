@@ -9,10 +9,29 @@ from PySide6.QtWidgets import QApplication
 from wispernext.domain import ApplicationState, StateSnapshot
 from wispernext.infrastructure.config import InterfaceLanguage
 from wispernext.ui.floating_button import (
+    ButtonRecoveryReason,
     ButtonVisualState,
     FloatingMicrophoneButton,
     visual_state,
 )
+
+
+class FakeNativeWindow:
+    def __init__(self, *, visible: bool = True, topmost: bool = True) -> None:
+        self.visible = visible
+        self.topmost = topmost
+        self.apply_count = 0
+
+    def apply_required_state(self, _window_handle: int) -> None:
+        self.apply_count += 1
+        self.visible = True
+        self.topmost = True
+
+    def is_topmost(self, _window_handle: int) -> bool:
+        return self.topmost
+
+    def is_visible(self, _window_handle: int) -> bool:
+        return self.visible
 
 
 def application() -> QApplication:
@@ -78,3 +97,83 @@ def test_right_click_opens_settings_without_toggling_recording() -> None:
 
     assert events == ["settings"]
     assert event.isAccepted()
+
+
+def test_watchdog_recovery_is_idle_while_visible_and_topmost() -> None:
+    app = application()
+    native_window = FakeNativeWindow()
+    button = FloatingMicrophoneButton(
+        toggle_callback=lambda: None,
+        position_callback=lambda x, y: None,
+        native_window=native_window,
+    )
+    button.place(None, None)
+    button.show()
+    app.processEvents()
+    initial_apply_count = native_window.apply_count
+
+    assert button.recover_visibility() is None
+    assert native_window.apply_count == initial_apply_count
+
+
+def test_watchdog_restores_a_demoted_button_without_activating_it() -> None:
+    app = application()
+    native_window = FakeNativeWindow()
+    button = FloatingMicrophoneButton(
+        toggle_callback=lambda: None,
+        position_callback=lambda x, y: None,
+        native_window=native_window,
+    )
+    button.place(None, None)
+    button.show()
+    app.processEvents()
+    native_window.topmost = False
+
+    result = button.recover_visibility()
+
+    assert result is not None
+    assert result.reason is ButtonRecoveryReason.NOT_TOPMOST
+    assert result.succeeded
+    assert native_window.topmost
+
+
+def test_watchdog_restores_a_button_hidden_only_at_the_native_layer() -> None:
+    app = application()
+    native_window = FakeNativeWindow()
+    button = FloatingMicrophoneButton(
+        toggle_callback=lambda: None,
+        position_callback=lambda x, y: None,
+        native_window=native_window,
+    )
+    button.place(None, None)
+    button.show()
+    app.processEvents()
+    native_window.visible = False
+
+    result = button.recover_visibility()
+
+    assert result is not None
+    assert result.reason is ButtonRecoveryReason.HIDDEN
+    assert result.succeeded
+    assert native_window.visible
+
+
+def test_manual_recovery_reshows_the_button_even_when_state_looks_valid() -> None:
+    app = application()
+    native_window = FakeNativeWindow()
+    button = FloatingMicrophoneButton(
+        toggle_callback=lambda: None,
+        position_callback=lambda x, y: None,
+        native_window=native_window,
+    )
+    button.place(None, None)
+    button.show()
+    app.processEvents()
+    initial_apply_count = native_window.apply_count
+
+    result = button.recover_visibility(ButtonRecoveryReason.MANUAL)
+
+    assert result is not None
+    assert result.reason is ButtonRecoveryReason.MANUAL
+    assert result.succeeded
+    assert native_window.apply_count > initial_apply_count

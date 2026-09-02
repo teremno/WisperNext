@@ -17,6 +17,7 @@ from wispernext.application.diagnostics import (
     DiagnosticEventName,
     DiagnosticJournal,
     DiagnosticOutcome,
+    DiagnosticReason,
     NullDiagnosticJournal,
 )
 from wispernext.application.text_processing import (
@@ -52,6 +53,7 @@ __all__ = [
     "DiagnosticEventName",
     "DiagnosticJournal",
     "DiagnosticOutcome",
+    "DiagnosticReason",
     "DictationController",
     "FocusContext",
     "NullDiagnosticJournal",

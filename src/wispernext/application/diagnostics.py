@@ -9,12 +9,23 @@ class DiagnosticEventName(StrEnum):
     TEXT_PROCESSING = "text_processing"
     DICTATION_COMPLETE = "dictation_complete"
     DICTATION_FAILURE = "dictation_failure"
+    FLOATING_BUTTON_RECOVERY = "floating_button_recovery"
 
 
 class DiagnosticOutcome(StrEnum):
     SUCCESS = "success"
     FALLBACK = "fallback"
     FAILED = "failed"
+
+
+class DiagnosticReason(StrEnum):
+    BUTTON_MANUAL = "button_manual"
+    BUTTON_DISPLAY_CHANGED = "button_display_changed"
+    BUTTON_HIDDEN = "button_hidden"
+    BUTTON_MINIMIZED = "button_minimized"
+    BUTTON_OFF_SCREEN = "button_off_screen"
+    BUTTON_NOT_TOPMOST = "button_not_topmost"
+    BUTTON_NATIVE_STATE_ERROR = "button_native_state_error"
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +39,7 @@ class DiagnosticEvent:
     output_language: str | None = None
     failure: str | None = None
     attempts: int | None = None
+    reason: DiagnosticReason | None = None
 
 
 class DiagnosticJournal(Protocol):

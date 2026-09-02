@@ -58,3 +58,4 @@ def test_every_content_language_has_a_name_in_every_interface_language() -> None
 def test_interface_options_are_self_identifying_and_russian_is_translated() -> None:
     assert {language for _label, language in interface_language_options()} == set(InterfaceLanguage)
     assert tr(InterfaceLanguage.RUSSIAN, "tray.settings") == "Настройки…"
+    assert tr(InterfaceLanguage.RUSSIAN, "tray.show_button") == "Показать кнопку микрофона"

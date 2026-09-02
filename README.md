@@ -152,6 +152,10 @@ Press Enter once. PowerShell does not show a success message; after a few second
 microphone button and a system-tray icon appear. You may then close PowerShell. Use the floating
 button or `F8`; right-click the button, or use the system-tray icon, to open Settings.
 
+If the floating button is ever hidden by a display, sleep, or desktop change, open the system-tray
+menu and select **Show microphone button**. WisperNext also repairs hidden, off-screen, and lost
+always-on-top state automatically.
+
 Create a desktop shortcut with:
 
 ```powershell

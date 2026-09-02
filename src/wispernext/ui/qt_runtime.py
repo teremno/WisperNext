@@ -6,6 +6,7 @@ import sys
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from typing import override
+from uuid import uuid4
 
 from PySide6.QtCore import (
     QAbstractNativeEventFilter,
@@ -16,9 +17,16 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
+from PySide6.QtGui import QScreen
 from PySide6.QtWidgets import QApplication
 
-from wispernext.application import DictationController
+from wispernext.application import (
+    DiagnosticEvent,
+    DiagnosticEventName,
+    DiagnosticOutcome,
+    DiagnosticReason,
+    DictationController,
+)
 from wispernext.audio.session import AudioSessionError
 from wispernext.bootstrap import build_application_services
 from wispernext.domain import ApplicationState, StateSnapshot, parse_hotkey
@@ -29,7 +37,7 @@ from wispernext.platform.windows.hotkeys import (
     is_registered_hotkey_message,
 )
 from wispernext.platform.windows.single_instance import WindowsSingleInstance
-from wispernext.ui.floating_button import FloatingMicrophoneButton
+from wispernext.ui.floating_button import ButtonRecoveryReason, FloatingMicrophoneButton
 from wispernext.ui.i18n import resolve_interface_language, tr
 from wispernext.ui.settings_dialog import SettingsDialog
 from wispernext.ui.tray import WisperTrayIcon
@@ -119,6 +127,39 @@ def run_desktop_application(
     )
     controller_holder.append(controller)
     settings_dialogs: list[SettingsDialog] = []
+    button_recovery_enabled = [settings.launch_floating_button]
+
+    reason_map = {
+        ButtonRecoveryReason.MANUAL: DiagnosticReason.BUTTON_MANUAL,
+        ButtonRecoveryReason.DISPLAY_CHANGED: DiagnosticReason.BUTTON_DISPLAY_CHANGED,
+        ButtonRecoveryReason.HIDDEN: DiagnosticReason.BUTTON_HIDDEN,
+        ButtonRecoveryReason.MINIMIZED: DiagnosticReason.BUTTON_MINIMIZED,
+        ButtonRecoveryReason.OFF_SCREEN: DiagnosticReason.BUTTON_OFF_SCREEN,
+        ButtonRecoveryReason.NOT_TOPMOST: DiagnosticReason.BUTTON_NOT_TOPMOST,
+        ButtonRecoveryReason.NATIVE_STATE_ERROR: DiagnosticReason.BUTTON_NATIVE_STATE_ERROR,
+    }
+
+    def recover_button(trigger: ButtonRecoveryReason | None = None) -> None:
+        if not button_recovery_enabled[0] and trigger is not ButtonRecoveryReason.MANUAL:
+            return
+        result = button.recover_visibility(trigger)
+        if result is None:
+            return
+        services.diagnostic_journal.record(
+            DiagnosticEvent(
+                operation_id=uuid4().hex,
+                name=DiagnosticEventName.FLOATING_BUTTON_RECOVERY,
+                outcome=(
+                    DiagnosticOutcome.SUCCESS if result.succeeded else DiagnosticOutcome.FAILED
+                ),
+                failure=None if result.succeeded else "native_window_state",
+                reason=reason_map[result.reason],
+            )
+        )
+
+    def show_button() -> None:
+        button_recovery_enabled[0] = True
+        recover_button(ButtonRecoveryReason.MANUAL)
 
     def open_settings() -> None:
         if settings_dialogs and settings_dialogs[0].isVisible():
@@ -141,7 +182,8 @@ def run_desktop_application(
             button.set_interface_language(active_language[0])
             tray.set_interface_language(active_language[0])
             if updated.launch_floating_button:
-                button.show()
+                button_recovery_enabled[0] = True
+                recover_button(ButtonRecoveryReason.MANUAL)
             dialog.saved(updated)
 
         dialog = SettingsDialog(
@@ -164,6 +206,7 @@ def run_desktop_application(
     settings_callback_holder.append(open_settings)
 
     tray = WisperTrayIcon(
+        show_button_callback=show_button,
         settings_callback=open_settings,
         shutdown_callback=controller.shutdown,
         interface_language=active_language[0],
@@ -182,6 +225,28 @@ def run_desktop_application(
         button.show()
     tray.show()
     controller.start()
+
+    recovery_timer = QTimer(app)
+    recovery_timer.setInterval(3000)
+    recovery_timer.timeout.connect(recover_button)
+    recovery_timer.start()
+
+    def schedule_display_recovery(*_args: object) -> None:
+        QTimer.singleShot(
+            250,
+            lambda: recover_button(ButtonRecoveryReason.DISPLAY_CHANGED),
+        )
+
+    def watch_screen(screen: QScreen) -> None:
+        screen.availableGeometryChanged.connect(schedule_display_recovery)
+        screen.geometryChanged.connect(schedule_display_recovery)
+
+    for current_screen in app.screens():
+        watch_screen(current_screen)
+    app.screenAdded.connect(watch_screen)
+    app.screenAdded.connect(schedule_display_recovery)
+    app.screenRemoved.connect(schedule_display_recovery)
+    app.primaryScreenChanged.connect(schedule_display_recovery)
     if exit_after_ms is not None:
         QTimer.singleShot(exit_after_ms, app.quit)
 

@@ -1,5 +1,56 @@
 # Implementation Status
 
+## Floating-button visibility recovery plan — 2026-09-02
+
+1. Add one focused recovery path that revalidates the saved position against current screens,
+   restores the widget without activation, and explicitly reapplies the native Windows topmost
+   state.
+2. Invoke recovery after display topology changes and through a localized system-tray action, then
+   add a low-frequency watchdog that repairs only invalid hidden, off-screen, or non-topmost state.
+3. Record bounded privacy-safe UI recovery events without window titles, application names, dictated
+   text, audio, clipboard content, or credentials.
+4. Add behavior-level unit tests, run all configured quality gates, and document Windows scenarios
+   that still require real desktop verification.
+
+## Floating-button visibility recovery completion — 2026-09-02
+
+- Root cause class addressed: Qt requested always-on-top only when creating the tool window. The
+  application did not detect or repair a native window hidden, demoted, minimized, or stranded by
+  Windows display, desktop, sleep, or shell transitions.
+- Recovery: one UI-owned method now verifies Qt visibility, native visibility, minimized state,
+  complete placement on an available screen, and the native topmost bit. It repairs only invalid
+  state and uses `SetWindowPos(HWND_TOPMOST, ...)` with `SWP_NOACTIVATE`.
+- Triggers: a three-second low-frequency watchdog covers resumed or shell-altered state; screen,
+  available-geometry, and primary-display changes schedule recovery after Windows settles.
+- Manual fallback: the localized tray menu now exposes **Show microphone button** in English,
+  Ukrainian, and Russian. Manual recovery recreates the visible window state without restarting
+  WisperNext.
+- Privacy: recovery diagnostics contain only a random operation ID, bounded recovery reason,
+  success/failure status, and timestamp. No dictated text, audio, clipboard data, window title,
+  application name, or credential can be recorded through this event schema.
+- Documentation: the runtime behavior is recorded in ADR 0007 and the user-facing recovery command
+  is documented in README.
+
+### Verification
+
+- Python 3.12.13: Ruff format/lint, strict mypy, import smoke, and `pytest -m "not hardware"`
+  passed; 355 tests passed and 1 hardware test was deselected.
+- Python 3.13.7: the same gates passed; 355 tests passed and 1 hardware test was deselected.
+- A real Windows Qt smoke test created the native widget, confirmed it visible, topmost, and fully
+  on-screen, then closed it without opening an audio stream or changing Windows settings.
+- Regression tests cover healthy no-op polling, native-only hiding, lost topmost state, forced
+  manual recovery, full-screen placement checks, tray wiring, localization, and diagnostic schema.
+
+### Residual risks
+
+- Automated tests cannot reproduce the user's intermittent Windows shell/display event. The user
+  should reverify sleep/resume, lock/unlock, `Win+D`, fullscreen applications, virtual desktops,
+  display removal, and scaling changes on the affected installation.
+- Windows does not guarantee that an ordinary topmost window can overlay exclusive fullscreen or
+  higher-integrity secure system surfaces; recovery resumes when normal desktop composition returns.
+- The unrelated untracked `.installation-audit-20260820/` snapshot remains untouched and is not part
+  of this change.
+
 ## Repository rename cleanup — 2026-08-13
 
 - Confirmed the primary checkout uses `https://github.com/teremno/WisperNext.git` on `main`.

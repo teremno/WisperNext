@@ -25,6 +25,10 @@
 - [x] Letters, digits, and ordinary punctuation are rejected as unmodified hotkeys.
 - [x] Windows On-Screen Keyboard test is documented (no global hotkey event observed; floating
   button remains the verified keyboard-free control).
+- [x] Hidden, off-screen, minimized, or demoted floating-button state has a bounded automatic
+  recovery path and a manual system-tray action.
+- [ ] Sleep/resume, lock/unlock, display removal, scaling change, virtual desktops, and fullscreen
+  transitions are reverified by the user on the affected Windows installation.
 
 ## Groq
 

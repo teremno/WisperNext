@@ -16,12 +16,16 @@ class WisperTrayIcon(QSystemTrayIcon):
     def __init__(
         self,
         *,
+        show_button_callback: Callable[[], None],
         settings_callback: Callable[[], None],
         shutdown_callback: Callable[[], None],
         interface_language: InterfaceLanguage = InterfaceLanguage.ENGLISH,
     ) -> None:
         super().__init__(_tray_icon())
         menu = QMenu()
+        show_button_action = QAction(menu)
+        show_button_action.triggered.connect(show_button_callback)
+        menu.addAction(show_button_action)
         settings_action = QAction(menu)
         settings_action.triggered.connect(settings_callback)
         menu.addAction(settings_action)
@@ -38,6 +42,7 @@ class WisperTrayIcon(QSystemTrayIcon):
             )
         )
         self._menu = menu
+        self._show_button_action = show_button_action
         self._settings_action = settings_action
         self._exit_action = exit_action
         self.set_interface_language(interface_language)
@@ -45,6 +50,7 @@ class WisperTrayIcon(QSystemTrayIcon):
     def set_interface_language(self, interface_language: InterfaceLanguage) -> None:
         """Apply localized tray labels without rebuilding signal connections."""
         self.setToolTip(tr(interface_language, "tray.tooltip"))
+        self._show_button_action.setText(tr(interface_language, "tray.show_button"))
         self._settings_action.setText(tr(interface_language, "tray.settings"))
         self._exit_action.setText(tr(interface_language, "tray.exit"))
 

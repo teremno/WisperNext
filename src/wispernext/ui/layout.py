@@ -43,6 +43,23 @@ def visible_button_position(
     )
 
 
+def button_position_is_visible(
+    x: int,
+    y: int,
+    *,
+    button_size: int,
+    screens: tuple[ScreenRect, ...],
+) -> bool:
+    """Return whether the whole button fits on at least one available screen."""
+    return any(
+        x >= screen.x
+        and y >= screen.y
+        and x + button_size <= screen.x + screen.width
+        and y + button_size <= screen.y + screen.height
+        for screen in screens
+    )
+
+
 def _distance_squared(x: int, y: int, screen: ScreenRect) -> int:
     nearest_x = min(max(x, screen.x), screen.x + screen.width)
     nearest_y = min(max(y, screen.y), screen.y + screen.height)

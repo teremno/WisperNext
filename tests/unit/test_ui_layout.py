@@ -1,4 +1,8 @@
-from wispernext.ui.layout import ScreenRect, visible_button_position
+from wispernext.ui.layout import (
+    ScreenRect,
+    button_position_is_visible,
+    visible_button_position,
+)
 
 SCREENS = (
     ScreenRect(0, 0, 1920, 1040),
@@ -20,3 +24,9 @@ def test_offscreen_position_is_clamped_to_nearest_screen() -> None:
 
 def test_no_screen_has_deterministic_safe_fallback() -> None:
     assert visible_button_position(None, None, button_size=64, screens=()) == (24, 24)
+
+
+def test_visibility_requires_the_whole_button_to_fit_on_one_screen() -> None:
+    assert button_position_is_visible(-64, 300, button_size=64, screens=SCREENS)
+    assert not button_position_is_visible(-32, 300, button_size=64, screens=SCREENS)
+    assert not button_position_is_visible(1900, 300, button_size=64, screens=SCREENS)
