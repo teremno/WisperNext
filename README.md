@@ -2,6 +2,9 @@
 
 Voice typing for Windows, with optional translation.
 
+WisperNext is free and open source. It works with Groq's Free Plan for speech
+recognition, formatting, and translation, subject to [Groq's usage limits](https://console.groq.com/docs/rate-limits).
+
 Speak naturally and insert text where you're working. Keep the original language
 or translate into one of 16 supported languages. Use it for messages, emails,
 and other text you would otherwise type.
@@ -42,7 +45,8 @@ validation, WisperNext keeps the original transcript.
 ## Install
 
 You need Windows 10 or 11, 64-bit Python 3.12 or 3.13, Git, and a
-[Groq API key](https://console.groq.com/keys). Windows 11 is the tested platform.
+[Groq API key](https://console.groq.com/keys). The Free Plan is enough to get started;
+Groq's limits apply. Windows 11 is the tested platform.
 A production installer is not available yet.
 
 [Follow the Windows installation guide](docs/INSTALL_WINDOWS.md).

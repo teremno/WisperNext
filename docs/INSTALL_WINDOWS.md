@@ -5,6 +5,9 @@
 You need Windows 10 or 11, 64-bit Python 3.12 or 3.13, Git, an internet connection,
 and a [Groq API key](https://console.groq.com/keys). Windows 11 is the tested platform.
 WisperNext currently installs from source; a production installer is not available.
+The application is free and open source. Groq's Free Plan supports the required models
+within its [usage limits](https://console.groq.com/docs/rate-limits). A paid Groq plan
+may incur charges under Groq's [billing terms](https://console.groq.com/docs/billing-faqs).
 
 ## Download and install
 
