@@ -1,8 +1,8 @@
 # WisperNext
 
-Voice typing for Windows, with optional translation.
+Free voice typing and speech-to-text for Windows, with optional translation.
 
-WisperNext is free and open source. It works with Groq's Free Plan for speech
+WisperNext is open source. It works with Groq's Free Plan for speech
 recognition, formatting, and translation, subject to [Groq's usage limits](https://console.groq.com/docs/rate-limits).
 
 Speak naturally and insert text where you're working. Keep the original language
