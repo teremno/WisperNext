@@ -108,3 +108,14 @@ def test_maximum_duration_bounds_samples_and_stops_callback() -> None:
 
     assert not keep_running
     assert len(captured.samples) == DEVICE.default_sample_rate
+
+
+def test_per_recording_duration_overrides_the_default_and_still_owns_one_stream() -> None:
+    backend = FakeBackend()
+    service = AudioSessionService(backend, max_duration_seconds=300)
+    service.start(DEVICE, max_duration_seconds=2)
+
+    assert not backend.streams[0].emit((0.1,) * 30)
+    assert len(service.stop().samples) == 20
+    assert backend.create_count == 1
+    assert backend.streams[0].close_count == 1

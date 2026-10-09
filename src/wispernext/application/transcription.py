@@ -1,5 +1,6 @@
 """Validated transcription use case with no provider-specific details."""
 
+from contextlib import closing
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
@@ -50,6 +51,8 @@ class TranscriptionProviderError(RuntimeError):
 
 
 class TranscriptionTransport(Protocol):
+    def close(self) -> None: ...
+
     def transcribe(self, wav_bytes: bytes, *, model: str, language: str | None) -> str: ...
 
 
@@ -90,21 +93,24 @@ class TranscriptionService:
         if validation.category is not AudioCategory.VALID_AUDIO:
             return TranscriptionResult(None, TranscriptionFailureCode.INVALID_AUDIO, validation)
 
-        api_key = self._secret_provider.get_groq_api_key()
-        if api_key is None:
-            return TranscriptionResult(None, TranscriptionFailureCode.MISSING_API_KEY, validation)
-
-        normalized = resample_mono(audio, TRANSCRIPTION_SAMPLE_RATE)
-        wav_bytes = encode_pcm16_wav(normalized)
-        transport = self._transport_factory.create(api_key)
         try:
-            text = transport.transcribe(
-                wav_bytes,
-                model=model,
-                language=_provider_language(language),
-            ).strip()
+            api_key = self._secret_provider.get_groq_api_key()
+            if api_key is None:
+                return TranscriptionResult(
+                    None, TranscriptionFailureCode.MISSING_API_KEY, validation
+                )
+            normalized = resample_mono(audio, TRANSCRIPTION_SAMPLE_RATE)
+            wav_bytes = encode_pcm16_wav(normalized)
+            with closing(self._transport_factory.create(api_key)) as transport:
+                text = transport.transcribe(
+                    wav_bytes,
+                    model=model,
+                    language=_provider_language(language),
+                ).strip()
         except TranscriptionProviderError as exc:
             return TranscriptionResult(None, _map_provider_failure(exc.code), validation)
+        except Exception:
+            return TranscriptionResult(None, TranscriptionFailureCode.UNEXPECTED, validation)
         if not text:
             return TranscriptionResult(None, TranscriptionFailureCode.EMPTY_RESPONSE, validation)
         return TranscriptionResult(text, None, validation)

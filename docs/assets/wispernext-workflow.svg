@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title description">
+  <title id="title">WisperNext: from speech to text</title>
+  <desc id="description">Choose the output language, use your configured shortcut or the microphone button to record and stop, then receive your words with punctuation or an optional German translation. The shortcut can be changed in Settings.</desc>
+  <rect width="1200" height="420" rx="24" fill="#101b2b"/>
+  <g font-family="Segoe UI, Arial, sans-serif" fill="#f5f7fa">
+    <text x="28" y="47" font-size="28" font-weight="700">From speech to text</text>
+    <text x="1172" y="45" text-anchor="end" font-size="17" fill="#c4d1e0">WisperNext</text>
+    <g stroke="#2f6775" fill="#1c2c41">
+      <rect x="28" y="78" width="346" height="272" rx="18"/>
+      <rect x="426" y="78" width="346" height="272" rx="18"/>
+      <rect x="824" y="78" width="348" height="272" rx="18"/>
+    </g>
+    <g fill="#31d6c4">
+      <circle cx="59" cy="113" r="15"/><circle cx="457" cy="113" r="15"/><circle cx="855" cy="113" r="15"/>
+    </g>
+    <g fill="#101b2b" font-size="17" font-weight="700" text-anchor="middle">
+      <text x="59" y="119">1</text><text x="457" y="119">2</text><text x="855" y="119">3</text>
+    </g>
+    <g font-size="23" font-weight="600">
+      <text x="84" y="121">Choose a language</text>
+      <text x="482" y="121">Speak, then stop</text>
+      <text x="880" y="121">Use the text</text>
+    </g>
+    <text x="52" y="166" font-size="18" fill="#c4d1e0">Keep your language</text>
+    <rect x="52" y="181" width="298" height="48" rx="9" fill="#254952"/>
+    <text x="68" y="212" font-size="20">Same as spoken language</text>
+    <text x="52" y="258" font-size="18" fill="#c4d1e0">Or translate</text>
+    <rect x="52" y="272" width="298" height="48" rx="9" fill="#2a405c"/>
+    <text x="68" y="303" font-size="20">German, or another language</text>
+    <text x="599" y="160" text-anchor="middle" font-size="20" fill="#c4d1e0">Start / stop recording</text>
+    <g stroke="#f5f7fa" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="476" y="187" width="61" height="42" rx="9"/>
+      <path d="M488 201h3m10 0h3m10 0h3m10 0h1M490 217h32"/>
+      <rect x="679" y="181" width="26" height="46" rx="13"/>
+      <path d="M670 209v8a22 22 0 0 0 44 0v-8M692 239v12M680 251h24"/>
+    </g>
+    <text x="599" y="222" text-anchor="middle" font-size="20" fill="#c4d1e0">or</text>
+    <g font-size="18" font-weight="600" text-anchor="middle">
+      <text x="506" y="282">Your shortcut</text>
+      <text x="674" y="282">Microphone button</text>
+    </g>
+    <text x="599" y="323" text-anchor="middle" font-size="20" fill="#c4d1e0">Change the shortcut in Settings</text>
+    <text x="848" y="160" font-size="16" fill="#31d6c4" font-weight="600">English dictation</text>
+    <text x="848" y="188" font-size="20">Hi, can you call me</text>
+    <text x="848" y="216" font-size="20">tomorrow at ten?</text>
+    <path d="M848 238h300" stroke="#3e6e80"/>
+    <text x="848" y="266" font-size="16" fill="#c4d1e0" font-weight="600">German translation</text>
+    <text x="848" y="294" font-size="20">Hallo, kannst du mich</text>
+    <text x="848" y="322" font-size="20">morgen um zehn anrufen?</text>
+    <g fill="none" stroke="#31d6c4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M387 214h24m-8-8 8 8-8 8"/>
+      <path d="M785 214h24m-8-8 8 8-8 8"/>
+    </g>
+    <text x="28" y="391" font-size="17" fill="#c4d1e0">Illustrative example. Translation is optional.</text>
+  </g>
+</svg>

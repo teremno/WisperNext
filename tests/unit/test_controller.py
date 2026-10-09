@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import replace
 
 from wispernext.application import (
     ClipboardDeliveryResult,
@@ -81,9 +82,11 @@ class FakeAudioSession:
         self.captured = captured or valid_audio()
         self.start_count = 0
         self.stop_count = 0
+        self.duration_limits: list[int | None] = []
 
-    def start(self, _device: InputDevice) -> None:
+    def start(self, _device: InputDevice, *, max_duration_seconds: int | None = None) -> None:
         self.start_count += 1
+        self.duration_limits.append(max_duration_seconds)
 
     def stop(self) -> CapturedAudio:
         self.stop_count += 1
@@ -93,11 +96,13 @@ class FakeAudioSession:
 class FakeTranscription:
     def __init__(self) -> None:
         self.call_count = 0
+        self.languages: list[object] = []
 
     def transcribe(
         self, audio: CapturedAudio, *, model: str, language: object
     ) -> TranscriptionResult:
         self.call_count += 1
+        self.languages.append(language)
         return TranscriptionResult("recognized", None, validate_audio(audio))
 
 
@@ -412,3 +417,71 @@ def test_shutdown_releases_audio_and_reaches_terminated() -> None:
 
     assert machine.snapshot().state is ApplicationState.TERMINATED
     assert audio.stop_count == 1
+
+
+def test_recording_uses_configured_duration_and_keeps_its_settings_until_delivery() -> None:
+    initial = Settings(input_language=LanguageCode.UKRAINIAN, max_recording_seconds=90)
+    controller, machine, audio, transcription, _, _, _ = build_controller(
+        scheduler=ImmediateScheduler(), settings=initial
+    )
+    controller.start()
+    controller.toggle_recording()
+    controller.update_settings(
+        replace(initial, max_recording_seconds=5, input_language=LanguageCode.GERMAN),
+        lambda _: None,
+        lambda _: None,
+    )
+
+    assert audio.duration_limits == [90]
+    assert controller.current_settings().max_recording_seconds == 5
+    controller.toggle_recording()
+    assert transcription.languages == [LanguageCode.UKRAINIAN]
+    assert machine.snapshot().state is ApplicationState.IDLE
+
+
+def test_time_limit_uses_normal_stop_flow_once() -> None:
+    controller, machine, audio, transcription, clipboard, _, _ = build_controller(
+        scheduler=ImmediateScheduler(), settings=Settings(max_recording_seconds=5)
+    )
+    now = [100.0]
+    controller._clock = lambda: now[0]
+    controller.start()
+    controller.toggle_recording()
+    now[0] = 104.9
+    controller.stop_if_recording_expired()
+    assert machine.snapshot().state is ApplicationState.RECORDING
+    now[0] = 105.0
+    controller.stop_if_recording_expired()
+    controller.stop_if_recording_expired()
+    assert machine.snapshot().state is ApplicationState.IDLE
+    assert audio.stop_count == 1
+    assert transcription.call_count == 1
+    assert clipboard.texts == ["recognized"]
+
+
+def test_shutdown_during_transcription_prevents_formatting_and_delivery() -> None:
+    scheduler = QueuedScheduler()
+    processor = FakeTextProcessing()
+    controller, machine, _, transcription, clipboard, _, _ = build_controller(
+        scheduler=scheduler, text_processing=processor
+    )
+    controller.start()
+    scheduler.tasks.pop(0)()
+    controller.toggle_recording()
+    scheduler.tasks.pop(0)()
+    original_transcribe = transcription.transcribe
+
+    def shut_down_during_call(
+        audio: CapturedAudio, *, model: str, language: object
+    ) -> TranscriptionResult:
+        controller.shutdown()
+        return original_transcribe(audio, model=model, language=language)
+
+    transcription.transcribe = shut_down_during_call  # type: ignore[method-assign]
+    controller.toggle_recording()
+    scheduler.tasks.pop(0)()
+    assert machine.snapshot().state is ApplicationState.SHUTTING_DOWN
+    assert clipboard.texts == []
+    assert processor.call_count == 0
+    scheduler.tasks.pop(0)()
+    assert machine.snapshot().state is ApplicationState.TERMINATED

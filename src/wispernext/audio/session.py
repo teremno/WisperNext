@@ -37,10 +37,16 @@ class AudioSessionService:
         self._statuses: list[str] = []
         self._accepting = False
 
-    def start(self, device: InputDevice) -> CaptureStart:
+    def start(
+        self, device: InputDevice, *, max_duration_seconds: int | None = None
+    ) -> CaptureStart:
         with self._lock:
             if self._stream is not None or self._closing:
                 raise AudioSessionError("A capture stream is already owned.")
+            if max_duration_seconds is not None:
+                if max_duration_seconds <= 0:
+                    raise ValueError("max_duration_seconds must be positive")
+                self._max_duration_seconds = max_duration_seconds
             capture_id = uuid4().hex
             self._capture_id = capture_id
             self._sample_rate = device.default_sample_rate

@@ -21,6 +21,10 @@ class GroqTranscriptionTransport:
     def __init__(self, client: Groq) -> None:
         self._client = client
 
+    def close(self) -> None:
+        """Release the per-recording HTTP connection pool deterministically."""
+        self._client.close()
+
     def transcribe(self, wav_bytes: bytes, *, model: str, language: str | None) -> str:
         try:
             if language is None:

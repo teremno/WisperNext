@@ -1,5 +1,31 @@
 # Implementation Status
 
+## Recording shortcut in Settings — 2026-10-10
+
+- Fixed a documentation mismatch: the shortcut was configurable in JSON but absent from UI.
+- Added an editable shortcut selector with validation and English/Ukrainian/Russian labels.
+- Apply registration on the Qt thread before saving; reject occupied shortcuts and restore
+  the previous registration if persistence fails. Report restoration failure explicitly.
+- Added scrolling so Save remains reachable on smaller screens and larger text scales.
+- Python 3.12 and 3.13: 429 non-hardware tests passed each; one hardware test deselected.
+- Ruff format/lint and mypy passed. Live Win32 rebind F23 to F24 passed in an isolated
+  process and released both shortcuts. No user setting was changed by verification.
+- Updated the copy launched by the user's shortcut; desktop smoke exited successfully.
+
+## Faithful dictation and architecture fixes — 2026-10-10
+
+- Base commit: `3113b3d`; local changes, no commit or push.
+- Humanizer adapted to preserve the speaker's voice across all 16 configured languages.
+- Added deterministic wording/literal checks, incomplete-response rejection, and client cleanup.
+- Fixed per-recording settings/duration, shutdown continuation, microphone selection, and
+  typed settings-directory errors. Existing features/options and provider remain.
+- Python 3.12.14 and 3.13.7: `python -m pytest -m "not hardware"`: 418 passed each,
+  one hardware test deselected. Ruff format/lint and mypy passed on 3.13.7.
+- Live synthetic Groq: 31/32 accepted after targeted retries. Arabic vocalization caused a
+  conservative original-transcript fallback. This is not native-speaker quality certification.
+- Real microphone, automatic paste into third-party apps, and long dictation remain unverified.
+- Design and source attribution: ADR 0010 and `docs/third-party/humanizer/`.
+
 ## Floating-button visibility recovery plan — 2026-09-02
 
 1. Add one focused recovery path that revalidates the saved position against current screens,

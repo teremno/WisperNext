@@ -38,6 +38,7 @@ from wispernext.platform.windows.hotkeys import (
 )
 from wispernext.platform.windows.single_instance import WindowsSingleInstance
 from wispernext.ui.floating_button import ButtonRecoveryReason, FloatingMicrophoneButton
+from wispernext.ui.hotkey_settings import save_with_hotkey
 from wispernext.ui.i18n import resolve_interface_language, tr
 from wispernext.ui.settings_dialog import SettingsDialog
 from wispernext.ui.tray import WisperTrayIcon
@@ -190,8 +191,11 @@ def run_desktop_application(
             controller.current_settings(),
             interface_language=active_language[0],
             refresh_callback=refresh,
-            save_callback=lambda updated: controller.update_settings(
+            save_callback=lambda updated: save_with_hotkey(
                 updated,
+                controller.current_settings(),
+                hotkey,
+                controller.update_settings,
                 saved,
                 lambda key: dialog.show_error(tr(active_language[0], key)),
             ),
@@ -225,6 +229,11 @@ def run_desktop_application(
         button.show()
     tray.show()
     controller.start()
+
+    recording_timer = QTimer(app)
+    recording_timer.setInterval(250)
+    recording_timer.timeout.connect(controller.stop_if_recording_expired)
+    recording_timer.start()
 
     recovery_timer = QTimer(app)
     recovery_timer.setInterval(3000)

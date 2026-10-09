@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from dataclasses import replace
 from threading import RLock
+from time import monotonic
 from typing import Protocol
 from uuid import uuid4
 
@@ -82,6 +83,7 @@ class DictationController:
         ui_dispatcher: UiDispatcher,
         scheduler: TaskScheduler | None = None,
         diagnostic_journal: DiagnosticJournal | None = None,
+        clock: Callable[[], float] = monotonic,
     ) -> None:
         self._state_machine = state_machine
         self._microphone_catalog = microphone_catalog
@@ -98,6 +100,9 @@ class DictationController:
         self._scheduler = scheduler or ThreadTaskScheduler()
         self._diagnostic_journal = diagnostic_journal or NullDiagnosticJournal()
         self._settings = initial_settings
+        self._recording_settings = initial_settings
+        self._clock = clock
+        self._recording_started_at: float | None = None
         self._recording_context: FocusContext | None = None
         self._operation_id: str | None = None
         self._journal_warning_sent = False
@@ -189,10 +194,22 @@ class DictationController:
                 return
             if result.current_state is ApplicationState.OPENING_AUDIO:
                 self._operation_id = uuid4().hex
+                self._recording_settings = self._settings
                 self._recording_context = self._focus_port.current_focus()
                 self._scheduler.schedule(self._open_audio)
             elif result.current_state is ApplicationState.STOPPING_AUDIO:
                 self._scheduler.schedule(self._finish_dictation)
+
+    def stop_if_recording_expired(self) -> None:
+        """Use the ordinary stop workflow when the configured recording limit is reached."""
+        with self._lock:
+            if (
+                self._state_machine.snapshot().state is ApplicationState.RECORDING
+                and self._recording_started_at is not None
+                and self._clock() - self._recording_started_at
+                >= self._recording_settings.max_recording_seconds
+            ):
+                self.toggle_recording()
 
     def shutdown(self) -> None:
         with self._lock:
@@ -206,7 +223,7 @@ class DictationController:
 
     def _open_audio(self) -> None:
         try:
-            resolution = self._microphone_catalog.resolve(self._settings)
+            resolution = self._microphone_catalog.resolve(self._recording_settings)
             if resolution.status is not ResolutionStatus.RESOLVED or resolution.device is None:
                 self._fail(
                     AppError(
@@ -216,7 +233,11 @@ class DictationController:
                     )
                 )
                 return
-            self._audio_session.start(resolution.device)
+            self._audio_session.start(
+                resolution.device,
+                max_duration_seconds=self._recording_settings.max_recording_seconds,
+            )
+            self._recording_started_at = self._clock()
             self._transition(ApplicationState.RECORDING)
         except AudioSessionError:
             self._fail(AppError(ErrorCode.STREAM_ERROR, "Не вдалося запустити мікрофон.", True))
@@ -226,17 +247,21 @@ class DictationController:
     def _finish_dictation(self) -> None:
         try:
             audio = self._audio_session.stop()
-            self._transition(ApplicationState.VALIDATING_AUDIO)
+            self._recording_started_at = None
+            settings = self._recording_settings
+            if not self._transition(ApplicationState.VALIDATING_AUDIO):
+                return
             validation = validate_audio(audio)
             if validation.category is not AudioCategory.VALID_AUDIO:
                 self._fail(_audio_error(validation.category))
                 return
 
-            self._transition(ApplicationState.TRANSCRIBING)
+            if not self._transition(ApplicationState.TRANSCRIBING):
+                return
             transcription = self._transcription.transcribe(
                 audio,
-                model=self._settings.transcription_model,
-                language=self._settings.input_language,
+                model=settings.transcription_model,
+                language=settings.input_language,
             )
             if not transcription.succeeded or transcription.text is None:
                 self._fail(_transcription_error(transcription.failure))
@@ -245,18 +270,19 @@ class DictationController:
             final_text = transcription.text
             processing_fallback = False
             mode = processing_mode(
-                self._settings.input_language,
-                self._settings.output_language,
-                self._settings.safe_formatting,
+                settings.input_language,
+                settings.output_language,
+                settings.safe_formatting,
             )
             if mode is not None:
-                self._transition(ApplicationState.FORMATTING_OR_TRANSLATING)
+                if not self._transition(ApplicationState.FORMATTING_OR_TRANSLATING):
+                    return
                 processed = self._text_processing.process(
                     transcription.text,
-                    model=self._settings.text_model,
-                    input_language=self._settings.input_language,
-                    output_language=self._settings.output_language,
-                    safe_formatting=self._settings.safe_formatting,
+                    model=settings.text_model,
+                    input_language=settings.input_language,
+                    output_language=settings.output_language,
+                    safe_formatting=settings.safe_formatting,
                 )
                 final_text = processed.text
                 processing_fallback = processed.used_fallback
@@ -271,7 +297,8 @@ class DictationController:
                     attempts=processed.attempts,
                 )
 
-            self._transition(ApplicationState.DELIVERING_TEXT)
+            if not self._transition(ApplicationState.DELIVERING_TEXT):
+                return
             delivery = self._clipboard_delivery.deliver(final_text)
             if not delivery.verified:
                 self._fail(
@@ -279,22 +306,25 @@ class DictationController:
                 )
                 return
 
-            self._transition(ApplicationState.IDLE)
-            paste_result = self._auto_paste.try_paste(
-                enabled=self._settings.auto_paste,
-                clipboard_delivery=delivery,
-                recording_context=self._recording_context,
-                application_state=ApplicationState.IDLE,
-            )
-            if processing_fallback:
-                self._notice("notice.processing_fallback")
-            if self._settings.auto_paste and not paste_result.pasted:
-                self._notice(_auto_paste_notice(paste_result.status))
-            self._record_diagnostic(
-                DiagnosticEventName.DICTATION_COMPLETE,
-                DiagnosticOutcome.SUCCESS,
-            )
-            self._operation_id = None
+            # Keep the finished operation's focus and ID until delivery is fully committed.
+            with self._lock:
+                if not self._transition(ApplicationState.IDLE):
+                    return
+                paste_result = self._auto_paste.try_paste(
+                    enabled=settings.auto_paste,
+                    clipboard_delivery=delivery,
+                    recording_context=self._recording_context,
+                    application_state=ApplicationState.IDLE,
+                )
+                if processing_fallback:
+                    self._notice("notice.processing_fallback")
+                if settings.auto_paste and not paste_result.pasted:
+                    self._notice(_auto_paste_notice(paste_result.status))
+                self._record_diagnostic(
+                    DiagnosticEventName.DICTATION_COMPLETE,
+                    DiagnosticOutcome.SUCCESS,
+                )
+                self._operation_id = None
         except AudioSessionError:
             self._fail(AppError(ErrorCode.STREAM_ERROR, "Не вдалося завершити запис.", True))
         except Exception:
@@ -305,11 +335,12 @@ class DictationController:
             self._audio_session.stop()
         self._transition(ApplicationState.TERMINATED)
 
-    def _transition(self, target: ApplicationState) -> None:
+    def _transition(self, target: ApplicationState) -> bool:
         with self._lock:
             result = self._state_machine.transition_to(target)
             if result.accepted:
                 self._emit_locked()
+            return result.accepted
 
     def _fail(self, error: AppError) -> None:
         with self._lock:
@@ -346,13 +377,13 @@ class DictationController:
                 name=name,
                 outcome=outcome,
                 input_language=(
-                    self._settings.input_language.value
-                    if self._settings.input_language is not None
+                    self._recording_settings.input_language.value
+                    if self._recording_settings.input_language is not None
                     else None
                 ),
                 output_language=(
-                    self._settings.output_language.value
-                    if self._settings.output_language is not None
+                    self._recording_settings.output_language.value
+                    if self._recording_settings.output_language is not None
                     else None
                 ),
                 failure=failure,

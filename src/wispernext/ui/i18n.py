@@ -36,6 +36,17 @@ _ENGLISH: Final[dict[str, str]] = {
     "settings.output_same": "Same as spoken language",
     "settings.safe_formatting": "Add safe punctuation and paragraphs",
     "settings.behavior_group": "BEHAVIOR",
+    "settings.hotkey": "Recording shortcut:",
+    "settings.hotkey_help": (
+        "Choose a key or type a combination, such as F9 or Ctrl+Alt+R. Applies when saved."
+    ),
+    "settings.hotkey_invalid": (
+        "Use a supported shortcut, such as F9 or Ctrl+Alt+R. Letters and digits need a modifier."
+    ),
+    "notice.hotkey_restore_failed": (
+        "Could not restore the recording shortcut. Use the microphone "
+        "button and choose another shortcut."
+    ),
     "settings.auto_paste": "Automatically paste recognized text",
     "settings.max_recording": "Maximum recording:",
     "settings.seconds_suffix": " s",
@@ -97,6 +108,19 @@ _UKRAINIAN: Final[dict[str, str]] = {
     "settings.output_same": "Така сама, як мова мовлення",
     "settings.safe_formatting": "Додавати безпечну пунктуацію та абзаци",
     "settings.behavior_group": "ПОВЕДІНКА",
+    "settings.hotkey": "Клавіша запису:",
+    "settings.hotkey_help": (
+        "Виберіть клавішу або введіть комбінацію, наприклад F9 чи "
+        "Ctrl+Alt+R. Застосовується після збереження."
+    ),
+    "settings.hotkey_invalid": (
+        "Вкажіть допустиму клавішу, наприклад F9 чи Ctrl+Alt+R. Літери й "
+        "цифри потребують модифікатора."
+    ),
+    "notice.hotkey_restore_failed": (
+        "Не вдалося відновити клавішу запису. Скористайтеся кнопкою "
+        "мікрофона й виберіть іншу клавішу."
+    ),
     "settings.auto_paste": "Автоматично вставляти розпізнаний текст",
     "settings.max_recording": "Максимальний запис:",
     "settings.seconds_suffix": " с",
@@ -158,6 +182,19 @@ _RUSSIAN: Final[dict[str, str]] = {
     "settings.output_same": "Такой же, как язык речи",
     "settings.safe_formatting": "Добавлять безопасную пунктуацию и абзацы",
     "settings.behavior_group": "ПОВЕДЕНИЕ",
+    "settings.hotkey": "Клавиша записи:",
+    "settings.hotkey_help": (
+        "Выберите клавишу или введите комбинацию, например F9 или "
+        "Ctrl+Alt+R. Применяется после сохранения."
+    ),
+    "settings.hotkey_invalid": (
+        "Укажите допустимую клавишу, например F9 или Ctrl+Alt+R. Буквы и "
+        "цифры требуют модификатора."
+    ),
+    "notice.hotkey_restore_failed": (
+        "Не удалось восстановить клавишу записи. Используйте кнопку "
+        "микрофона и выберите другую клавишу."
+    ),
     "settings.auto_paste": "Автоматически вставлять распознанный текст",
     "settings.max_recording": "Максимальная запись:",
     "settings.seconds_suffix": " с",

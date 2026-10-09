@@ -199,6 +199,17 @@ def test_atomic_replace_failure_preserves_previous_settings(
     assert list(tmp_path.glob("*.tmp")) == []
 
 
+def test_settings_directory_failure_is_typed_and_does_not_strand_the_ui(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_mkdir(self: Path, **kwargs: object) -> None:
+        raise PermissionError("private filesystem detail")
+
+    monkeypatch.setattr(Path, "mkdir", fail_mkdir)
+    with pytest.raises(SettingsStorageError, match="Could not atomically save settings"):
+        JsonSettingsStore(tmp_path / "unavailable" / "settings.json").save(Settings())
+
+
 def test_encoded_settings_have_no_secret_field_or_value() -> None:
     encoded = json.dumps(encode_settings(Settings()))
 

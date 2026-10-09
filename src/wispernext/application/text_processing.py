@@ -1,12 +1,15 @@
 """Conservative optional formatting and translation with raw-transcript fallback."""
 
-import re
-from collections import Counter
+from contextlib import closing
 from dataclasses import dataclass
-from difflib import SequenceMatcher
 from enum import StrEnum
 from typing import Protocol
 
+from wispernext.application.text_fidelity import (
+    lexical_tokens,
+    preserves_literals,
+    preserves_wording,
+)
 from wispernext.application.transcription import ProviderFailureCode
 from wispernext.infrastructure.config import LanguageCode
 from wispernext.infrastructure.secrets import SecretProvider, SecretValue
@@ -45,6 +48,8 @@ class ProviderTextResult:
 
 
 class TextProcessingTransport(Protocol):
+    def close(self) -> None: ...
+
     def process(
         self,
         transcript: str,
@@ -114,9 +119,28 @@ class TextProcessingService:
         if api_key is None:
             return _fallback(transcript, TextProcessingFailureCode.MISSING_API_KEY)
         try:
-            transport = self._transport_factory.create(api_key)
+            with closing(self._transport_factory.create(api_key)) as transport:
+                return self._process_with_transport(
+                    transcript,
+                    transport,
+                    model=model,
+                    mode=mode,
+                    input_language=input_language,
+                    output_language=output_language,
+                )
         except Exception:
             return _fallback(transcript, TextProcessingFailureCode.UNEXPECTED)
+
+    def _process_with_transport(
+        self,
+        transcript: str,
+        transport: TextProcessingTransport,
+        *,
+        model: str,
+        mode: TextProcessingMode,
+        input_language: LanguageCode | None,
+        output_language: LanguageCode | None,
+    ) -> TextProcessingResult:
         max_attempts = 2 if mode is TextProcessingMode.TRANSLATE else 1
         for attempt in range(1, max_attempts + 1):
             try:
@@ -178,7 +202,9 @@ def _is_safe_result(
     expected_language = output_language or input_language
     if expected_language is not None and reported_language != expected_language.value:
         return False
-    if _has_forbidden_wrapper(candidate) or _numbers(source) != _numbers(candidate):
+    if _has_forbidden_wrapper(candidate) and not _has_forbidden_wrapper(source):
+        return False
+    if not preserves_literals(source, candidate):
         return False
 
     if (
@@ -195,17 +221,19 @@ def _is_safe_result(
     source_length = max(len(source.strip()), 1)
     ratio = len(candidate) / source_length
     if mode is TextProcessingMode.TRANSLATE:
+        # Character counts differ greatly between CJK and spaced European scripts.
+        cjk_languages = {LanguageCode.CHINESE_SIMPLIFIED, LanguageCode.JAPANESE}
+        if (
+            input_language is None
+            or input_language in cjk_languages
+            or output_language in cjk_languages
+        ):
+            return 0.15 <= ratio <= 8.0
         return 0.35 <= ratio <= 3.0
-    if not 0.55 <= ratio <= 1.8:
+    if len(candidate) > max(source_length * 1.8, source_length + 16):
         return False
 
-    source_words = _words(source)
-    candidate_words = _words(candidate)
-    if not source_words:
-        return False
-    word_ratio = len(candidate_words) / len(source_words)
-    similarity = SequenceMatcher(None, source_words, candidate_words).ratio()
-    return 0.7 <= word_ratio <= 1.35 and similarity >= 0.62
+    return preserves_wording(source, candidate)
 
 
 def _has_forbidden_wrapper(text: str) -> bool:
@@ -214,34 +242,36 @@ def _has_forbidden_wrapper(text: str) -> bool:
         return True
     normalized = stripped.casefold()
     prefixes = (
-        "here is",
-        "here's",
+        "here is the formatted text",
+        "here is the corrected text",
+        "here is the translated text",
+        "here's the formatted text",
+        "here's the corrected text",
+        "here's the translated text",
         "translation:",
         "translated text:",
         "formatted text:",
-        "ось ",
+        "ось відформатований текст",
+        "ось виправлений текст",
+        "ось переклад",
         "переклад:",
         "відформатований текст:",
-        "hier ist",
+        "вот исправленный текст",
+        "вот перевод",
+        "перевод:",
+        "hier ist die übersetzung",
         "übersetzung:",
-        "voici",
+        "voici le texte corrigé",
+        "voici la traduction",
         "traduction:",
-        "aquí está",
+        "aquí está la traducción",
         "traducción:",
     )
     return normalized.startswith(prefixes)
 
 
-def _numbers(text: str) -> Counter[str]:
-    return Counter(re.findall(r"\d+(?:[.,]\d+)?", text))
-
-
-def _words(text: str) -> list[str]:
-    return re.findall(r"[^\W\d_]+", text.casefold(), flags=re.UNICODE)
-
-
 def _normalized_text(text: str) -> str:
-    return " ".join(_words(text))
+    return " ".join(lexical_tokens(text))
 
 
 def _contains_source_specific_characters(

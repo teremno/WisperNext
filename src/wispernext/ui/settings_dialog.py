@@ -11,17 +11,19 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from wispernext.audio.devices import InputDevice
-from wispernext.domain import MicrophoneSelectionMode
+from wispernext.domain import HotkeyValidationError, MicrophoneSelectionMode, parse_hotkey
 from wispernext.infrastructure.config import InterfaceLanguage, LanguageCode, Settings
 from wispernext.ui.i18n import (
     CONTENT_LANGUAGE_ORDER,
@@ -82,6 +84,12 @@ class SettingsDialog(QDialog):
         self._microphone = QComboBox()
         self._microphone.setAccessibleName(self._text("settings.microphone_accessible"))
         self._microphone.addItem(self._text("settings.microphone_default"), None)
+        if settings.microphone_selection_mode is MicrophoneSelectionMode.MANUAL:
+            self._microphone.addItem(
+                self._text("settings.saved_microphone_unavailable"),
+                settings.selected_microphone_id,
+            )
+            self._microphone.setCurrentIndex(1)
         self._refresh = QPushButton(self._text("settings.refresh"))
         self._refresh.setAccessibleName(self._text("settings.refresh_accessible"))
         self._refresh.clicked.connect(self.start_refresh)
@@ -124,6 +132,18 @@ class SettingsDialog(QDialog):
         self._max_seconds.setValue(settings.max_recording_seconds)
         behavior_group = QGroupBox(self._text("settings.behavior_group"))
         behavior_layout = QFormLayout(behavior_group)
+        self._hotkey = QComboBox()
+        self._hotkey.setObjectName("hotkey")
+        self._hotkey.setEditable(True)
+        self._hotkey.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self._hotkey.setAccessibleName(self._text("settings.hotkey"))
+        self._hotkey.addItems([f"F{number}" for number in range(1, 25)])
+        self._hotkey.addItems(["Ctrl+Alt+R", "Ctrl+Shift+R", "Pause"])
+        self._hotkey.setCurrentText(settings.hotkey)
+        hotkey_help = QLabel(self._text("settings.hotkey_help"))
+        hotkey_help.setWordWrap(True)
+        behavior_layout.addRow(self._text("settings.hotkey"), self._hotkey)
+        behavior_layout.addRow(hotkey_help)
         behavior_layout.addRow(self._auto_paste)
         behavior_layout.addRow(self._text("settings.max_recording"), self._max_seconds)
         behavior_layout.addRow(self._launch_button)
@@ -144,17 +164,32 @@ class SettingsDialog(QDialog):
         self._buttons.accepted.connect(self._save)
         self._buttons.rejected.connect(self.reject)
 
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 8, 0)
+        content_layout.setSpacing(16)
+        for group in (
+            title,
+            subtitle,
+            interface_group,
+            audio_group,
+            language_group,
+            behavior_group,
+        ):
+            content_layout.addWidget(group)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(content)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
-        layout.addWidget(interface_group)
-        layout.addWidget(audio_group)
-        layout.addWidget(language_group)
-        layout.addWidget(behavior_group)
+        layout.addWidget(scroll, 1)
         layout.addWidget(self._status)
         layout.addWidget(self._buttons)
+        # Keep Save reachable on smaller screens and at larger Windows text scales.
+        available_height = self.screen().availableGeometry().height()
+        self.resize(640, max(300, min(800, available_height - 60)))
 
     def start_refresh(self) -> None:
         """Disable device controls while requesting fresh metadata."""
@@ -164,17 +199,22 @@ class SettingsDialog(QDialog):
 
     def load_microphones(self, devices: tuple[InputDevice, ...]) -> None:
         """Populate stable device choices while preserving the current preference."""
-        selected_id = self._base_settings.selected_microphone_id
+        selected_id = self._microphone.currentData()
         self._microphone.clear()
         self._microphone.addItem(self._text("settings.microphone_default"), None)
         for device in devices:
             label = f"{device.name} · {device.host_api}"
             self._microphone.addItem(label, device.stable_id)
-        if self._base_settings.microphone_selection_mode is MicrophoneSelectionMode.MANUAL:
+        if selected_id is not None:
             index = self._microphone.findData(selected_id)
             if index >= 0:
                 self._microphone.setCurrentIndex(index)
             else:
+                # Preserve a disconnected manual choice; saving must never opt into fallback.
+                self._microphone.addItem(
+                    self._text("settings.saved_microphone_unavailable"), selected_id
+                )
+                self._microphone.setCurrentIndex(self._microphone.count() - 1)
                 self._status.setText(self._text("settings.saved_microphone_unavailable"))
                 self._set_refreshing(False)
                 return
@@ -217,17 +257,27 @@ class SettingsDialog(QDialog):
             auto_paste=self._auto_paste.isChecked(),
             max_recording_seconds=self._max_seconds.value(),
             launch_floating_button=self._launch_button.isChecked(),
+            hotkey=parse_hotkey(self._hotkey.currentText()).canonical,
         )
 
     def _set_refreshing(self, refreshing: bool) -> None:
         self._refresh.setEnabled(not refreshing)
         self._microphone.setEnabled(not refreshing)
+        self._buttons.button(QDialogButtonBox.StandardButton.Save).setEnabled(
+            not refreshing and not self._saving
+        )
 
     def _save(self) -> None:
+        try:
+            draft = self.draft_settings()
+        except HotkeyValidationError:
+            self.show_error(self._text("settings.hotkey_invalid"))
+            self._hotkey.setFocus()
+            return
         self._saving = True
         self._buttons.setEnabled(False)
         self._status.setText(self._text("settings.saving"))
-        self._save_callback(self.draft_settings())
+        self._save_callback(draft)
 
     def _text(self, key: str, **values: object) -> str:
         return tr(self._language, key, **values)
@@ -260,7 +310,7 @@ def _selected_interface_language(combo: QComboBox) -> InterfaceLanguage | None:
 
 
 _STYLE = """
-QDialog {
+QDialog, QScrollArea, QScrollArea > QWidget > QWidget {
     background: #101820;
     color: #e8fffb;
     font-family: "Segoe UI";

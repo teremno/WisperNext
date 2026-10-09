@@ -29,7 +29,7 @@ class FakeCompletions:
         if isinstance(self.result, Exception):
             raise self.result
         message = SimpleNamespace(content=self.result)
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+        return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="stop")])
 
 
 def fake_client(completions: FakeCompletions) -> Any:
@@ -53,7 +53,7 @@ def test_transport_uses_schema_bound_capped_translation_request() -> None:
     assert call["model"] == "openai/gpt-oss-120b"
     assert call["reasoning_effort"] == "low"
     assert call["temperature"] == 0.1
-    assert call["max_completion_tokens"] == 256
+    assert call["max_completion_tokens"] == 1_024
     response_format = call["response_format"]
     assert isinstance(response_format, dict)
     assert response_format["type"] == "json_schema"
@@ -130,3 +130,39 @@ def test_factory_configures_bounded_timeout_and_one_retry(
     assert timeout.connect == 3.0
     assert timeout.read == 20.0
     assert timeout.write == 10.0
+
+
+@pytest.mark.parametrize("finish_reason", ["length", "content_filter", "tool_calls"])
+def test_transport_rejects_incomplete_or_non_text_completion(finish_reason: str) -> None:
+    class IncompleteCompletions:
+        def create(self, **kwargs: object) -> Any:
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content='{"text":"Partial","language":"en"}'),
+                        finish_reason=finish_reason,
+                    )
+                ]
+            )
+
+    transport = GroqTextProcessingTransport(fake_client(IncompleteCompletions()))  # type: ignore[arg-type]
+    result = transport.process(
+        "complete source", model="model", mode=TextProcessingMode.FORMAT, target_language=None
+    )
+    assert result.text == ""
+
+
+def test_long_dictation_gets_more_than_the_previous_2048_token_ceiling() -> None:
+    completions = FakeCompletions('{"text":"Hello","language":"en"}')
+    transport = GroqTextProcessingTransport(fake_client(completions))
+    transport.process(
+        "word " * 3000, model="model", mode=TextProcessingMode.FORMAT, target_language=None
+    )
+    assert completions.calls[0]["max_completion_tokens"] == 16_384
+
+
+def test_transport_close_releases_owned_http_client() -> None:
+    closed: list[bool] = []
+    transport = GroqTextProcessingTransport(SimpleNamespace(close=lambda: closed.append(True)))
+    transport.close()
+    assert closed == [True]

@@ -23,6 +23,10 @@ class FakeTransport:
         self.text = text
         self.failure = failure
         self.calls: list[tuple[bytes, str, str | None]] = []
+        self.close_count = 0
+
+    def close(self) -> None:
+        self.close_count += 1
 
     def transcribe(self, wav_bytes: bytes, *, model: str, language: str | None) -> str:
         self.calls.append((wav_bytes, model, language))
@@ -107,6 +111,7 @@ def test_valid_audio_is_resampled_encoded_and_transcribed_once() -> None:
     assert wav_bytes.startswith(b"RIFF")
     assert model == "whisper-large-v3-turbo"
     assert language == "uk"
+    assert transport.close_count == 1
 
 
 @pytest.mark.parametrize("code", list(ProviderFailureCode))
@@ -119,6 +124,7 @@ def test_provider_failures_are_mapped_without_provider_messages(code: ProviderFa
     result = service.transcribe(valid_audio(), model="model", language=None)
 
     assert result.failure is TranscriptionFailureCode(code.value)
+    assert factory.transport.close_count == 1
     assert result.text is None
 
 

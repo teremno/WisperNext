@@ -301,9 +301,9 @@ class JsonSettingsStore:
     def save(self, settings: Settings) -> None:
         """Persist validated settings using flush, fsync, and atomic replace."""
         validated = decode_settings(encode_settings(settings))
-        self._path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path: Path | None = None
         try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
             with NamedTemporaryFile(
                 mode="w",
                 encoding="utf-8",
@@ -321,7 +321,12 @@ class JsonSettingsStore:
             os.replace(temporary_path, self._path)
         except OSError as exc:
             if temporary_path is not None:
-                temporary_path.unlink(missing_ok=True)
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError as cleanup_exc:
+                    raise SettingsStorageError(
+                        "Could not clean up failed settings save."
+                    ) from cleanup_exc
             raise SettingsStorageError("Could not atomically save settings.") from exc
 
     def _preserve_invalid_file(self, cause: Exception) -> Path:

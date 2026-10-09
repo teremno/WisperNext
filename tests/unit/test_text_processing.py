@@ -28,6 +28,10 @@ class FakeTransport:
     def __init__(self, result: ProviderTextResult | Exception) -> None:
         self.result = result
         self.calls: list[tuple[str, TextProcessingMode, LanguageCode | None]] = []
+        self.close_count = 0
+
+    def close(self) -> None:
+        self.close_count += 1
 
     def process(
         self,
