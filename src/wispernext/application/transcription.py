@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+from wispernext.application.transcription_hints import transcription_prompt
 from wispernext.audio.signal import (
     AudioCategory,
     AudioValidation,
@@ -17,6 +18,9 @@ from wispernext.infrastructure.config import LanguageCode
 from wispernext.infrastructure.secrets import SecretProvider, SecretValue
 
 TRANSCRIPTION_SAMPLE_RATE = 16_000
+# Groq resamples with a proper anti-aliasing filter, so native audio is sent while it
+# fits under the 25 MB free-tier upload limit.
+MAX_NATIVE_UPLOAD_BYTES = 24 * 1024 * 1024
 
 
 class ProviderFailureCode(StrEnum):
@@ -26,6 +30,7 @@ class ProviderFailureCode(StrEnum):
     TIMEOUT = "timeout"
     UNAVAILABLE = "unavailable"
     INVALID_REQUEST = "invalid_request"
+    INVALID_OUTPUT = "invalid_output"
     UNEXPECTED = "unexpected"
 
 
@@ -38,6 +43,7 @@ class TranscriptionFailureCode(StrEnum):
     TIMEOUT = "timeout"
     UNAVAILABLE = "unavailable"
     INVALID_REQUEST = "invalid_request"
+    INVALID_OUTPUT = "invalid_output"
     EMPTY_RESPONSE = "empty_response"
     UNEXPECTED = "unexpected"
 
@@ -53,7 +59,9 @@ class TranscriptionProviderError(RuntimeError):
 class TranscriptionTransport(Protocol):
     def close(self) -> None: ...
 
-    def transcribe(self, wav_bytes: bytes, *, model: str, language: str | None) -> str: ...
+    def transcribe(
+        self, wav_bytes: bytes, *, model: str, language: str | None, prompt: str | None
+    ) -> str: ...
 
 
 class TranscriptionTransportFactory(Protocol):
@@ -99,13 +107,13 @@ class TranscriptionService:
                 return TranscriptionResult(
                     None, TranscriptionFailureCode.MISSING_API_KEY, validation
                 )
-            normalized = resample_mono(audio, TRANSCRIPTION_SAMPLE_RATE)
-            wav_bytes = encode_pcm16_wav(normalized)
+            wav_bytes = encode_pcm16_wav(_provider_audio(audio))
             with closing(self._transport_factory.create(api_key)) as transport:
                 text = transport.transcribe(
                     wav_bytes,
                     model=model,
                     language=_provider_language(language),
+                    prompt=transcription_prompt(language),
                 ).strip()
         except TranscriptionProviderError as exc:
             return TranscriptionResult(None, _map_provider_failure(exc.code), validation)
@@ -114,6 +122,13 @@ class TranscriptionService:
         if not text:
             return TranscriptionResult(None, TranscriptionFailureCode.EMPTY_RESPONSE, validation)
         return TranscriptionResult(text, None, validation)
+
+
+def _provider_audio(audio: CapturedAudio) -> CapturedAudio:
+    native_bytes = 44 + 2 * len(audio.samples)
+    if audio.sample_rate >= TRANSCRIPTION_SAMPLE_RATE and native_bytes <= MAX_NATIVE_UPLOAD_BYTES:
+        return audio
+    return resample_mono(audio, TRANSCRIPTION_SAMPLE_RATE)
 
 
 def _provider_language(language: LanguageCode | None) -> str | None:

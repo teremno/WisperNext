@@ -1,5 +1,89 @@
 # Implementation Status
 
+## Dictation anti-slop integration plan — 2026-10-18
+
+1. Keep Groq as the only provider and use the existing optional text-processing call; add
+   no paid API, extra model pass, or background processing.
+2. Adapt the linked Humanizer's Ukrainian, English, and German guidance to personal
+   dictation and translation. The transcript remains the voice sample; marketing hooks,
+   stock phrases, and automatic word-replacement tables are excluded.
+3. Route the selected output language to that guidance for both same-language formatting
+   and translation, with language-neutral rules when input detection is automatic.
+4. Test prompt routing, preservation of natural colloquial speech, no added model calls,
+   and existing safe fallback. Run the configured non-hardware checks. Live voice quality
+   and AI-detector outcomes remain unverified until user review.
+
+## Dictation anti-slop integration evidence — 2026-10-18
+
+- The existing single Groq formatting/translation call now receives short guidance for the
+  selected output language: Ukrainian, English, German, and the already-supported Russian.
+  Auto-detected same-language input keeps language-neutral voice rules.
+- No paid provider, extra model pass, new dependency, or automatic replacement table was
+  added. The user's actual colloquial contrasts remain allowed by regression tests.
+- Python 3.13.7: Ruff format/lint and strict mypy passed; 446 non-hardware tests passed,
+  one hardware test deselected. The checkout was not installed as an editable package, so
+  the check script required `PYTHONPATH=src`; without it pytest could not import the package.
+- No live Groq request or real speech quality test was run for this change. Prompt guidance
+  and synthetic tests cannot guarantee every output is natural or repair an ASR mishearing.
+- The active desktop shortcut runs a separate checkout under
+  `C:\Users\Oleksandr\WisperNext` with unrelated local changes. Only the matching prompt,
+  routing, and tests were updated there; those other edits were preserved. Its Python 3.13
+  run passed mypy, targeted Ruff lint, and 435 non-hardware tests (one deselected). The
+  app remained running, so its existing processes will load the change only after exit
+  and relaunch. Nothing was committed or pushed.
+
+## Contextual dictation repair plan — 2026-10-18
+
+1. Keep the single optional Groq text-processing stage and the original-transcript fallback.
+2. Adapt the linked four-language Humanizer's author-voice and natural-register guidance for
+   personal dictation, excluding its marketing hooks, calls to action, and forced rewrites.
+3. Let the formatter accept bounded, same-position phonetic transcription repairs when the
+   surrounding words remain intact; keep negations, numbers, URLs, and questions guarded.
+4. Add four-language regression cases, including the user's confirmed Ukrainian phrase, plus
+   adverse cases where a fluent but different sentence must be rejected.
+5. Run the configured Python checks and a small synthetic Groq evaluation. Record what the
+   text-only checks prove and what still needs user-provided audio for verification.
+
+## Contextual dictation repair evaluation — 2026-10-18
+
+- Local experiment only; not committed, pushed, or installed in the active shortcut copy.
+- Ruff format/lint, mypy, and 437 non-hardware tests passed (one hardware test deselected).
+- Synthetic live Groq text checks matched the expected repair in Russian, English, and
+  German, but not in the confirmed Ukrainian example. Prompt variants and medium reasoning
+  also failed to restore the whole phrase; one variant returned malformed JSON.
+- The expanded validator can accept a correct multi-word repair when one is supplied, but
+  deterministic checks cannot prove a model's semantic guess is right. Do not ship this
+  experiment as a solved recognition issue. Next: compare Turbo and full Whisper on a
+  user-provided audio sample with known intended wording, then re-evaluate the combined flow.
+- Three user-provided Ogg/Opus recordings were compared on 2026-10-18 with fixed `uk`:
+  `whisper-large-v3-turbo` and `whisper-large-v3` produced the same words for all three,
+  with only one punctuation difference. The local optional formatter kept the wording on
+  all three, adding only a comma in one result. These recordings do not contain the
+  previously confirmed cardboard-envelope phrase, and no intended-text references were
+  supplied for ambiguous words. Therefore this test does not establish word accuracy or
+  justify changing the default transcription model. No audio or transcripts were saved
+  to the repository or diagnostic logs.
+- The user subsequently confirmed that recording 3's final verb was intended in the
+  third-person finite form, while both Whisper variants returned a first-person-compatible
+  infinitive. The current formatter and one general referent-aware prompt variant both
+  retained the incorrect form. This is a confirmed semantic ASR error, not merely an
+  uncertain punctuation or style choice; neither model switch nor the present formatter
+  resolves it. Keep this as a failing acceptance case, without saving the private wording.
+- Follow-up on 2026-10-18: the currently available alternate Groq text model also failed
+  both confirmed Ukrainian correction probes. A generic Ukrainian ASR hint about verb
+  endings did not change recording 3 under either Whisper model. An unconstrained
+  multi-candidate text prompt surfaced the intended grammatical person for that probe
+  but introduced extra words; on the other confirmed probe it guessed a different
+  meaning. It is not safe to deploy as automatic correction. A synthetic informal
+  sentence translated to English, German, and Russian without stock promotional
+  phrasing; this is only a spot check, not a general style guarantee.
+- User authorized a more aggressive opt-in correction mode. Additional bounded trials
+  with the two accessible Groq text models, Ukrainian-language correction instructions,
+  and short preceding-utterance context did not produce both confirmed corrections.
+  Some outputs changed the speaker or invented a different meaning; using context also
+  introduces cross-dictation privacy and contamination risks. Do not add a user-facing
+  switch that claims to solve these cases until a candidate passes the acceptance set.
+
 ## Recording shortcut in Settings — 2026-10-10
 
 - Fixed a documentation mismatch: the shortcut was configurable in JSON but absent from UI.
@@ -878,3 +962,29 @@ For every milestone, replace or extend this file with:
 - Unverified assumptions
 - Residual risks
 - Next milestone
+
+## Ukrainian recognition quick fixes — 2026-10-27
+
+- Default transcription model is `whisper-large-v3` (Groq lists 10.3 % WER against 12 % for
+  Turbo). Settings schema 6 moves the old Turbo default to it; an explicit Turbo value saved
+  under schema 6 stays.
+- Whisper receives a short Ukrainian style prompt with grammatical punctuation and common
+  technical words. Requests use `verbose_json`; segments with Whisper's no-speech scores,
+  4+ word echoes of the prompt, and trailing subtitle lines after real speech are dropped.
+- Audio up to 24 MB goes to Groq at its native rate, so Groq's filtered resampler runs.
+  Longer audio uses the local resampler, which now applies a triangular low-pass filter
+  (a 10 kHz tone falls from 0.307 to 0.079 RMS).
+- The wording gate accepts split or merged words with the same letters, one-sound fixes of
+  short words, and removal of hesitation sounds. Negations, pronouns, insertions, and other
+  deletions still fall back to the raw transcript.
+- The formatting prompt punctuates by grammar instead of pauses and removes commas grammar
+  does not require. A Groq `json_validate_failed` answer is logged as `invalid_output` and
+  retried once.
+- Checks: Ruff, mypy, and 479 non-hardware tests passed. A live Groq run fixed merged words,
+  pause commas, and hesitation sounds on synthetic Ukrainian text. On 4 s of pure noise,
+  Whisper still returned "Дякую за перегляд!" with a no-speech score of 0.35; this case is
+  not solved. No user recordings were tested.
+- The desktop shortcut now starts this checkout with `.venv` (Python 3.12, editable install).
+  The separate unpublished copy under `C:\Users\Oleksandr\WisperNext` was moved to the
+  Recycle Bin; its code changes were already present here. Settings schema 6 is not
+  readable by builds older than this one.

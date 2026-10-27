@@ -107,6 +107,25 @@ def test_version_three_settings_migrate_deprecated_default_text_model() -> None:
     assert migrated.text_model == "openai/gpt-oss-120b"
 
 
+@pytest.mark.parametrize("version", [4, 5])
+def test_previous_turbo_default_migrates_to_full_whisper(version: int) -> None:
+    payload = encode_settings(Settings(transcription_model="whisper-large-v3-turbo"))
+    payload["schema_version"] = version
+    if version == 4:
+        payload.pop("interface_language")
+
+    migrated = decode_settings(payload)
+
+    assert migrated.schema_version == CURRENT_SCHEMA_VERSION
+    assert migrated.transcription_model == "whisper-large-v3"
+
+
+def test_current_settings_keep_an_explicit_turbo_choice() -> None:
+    payload = encode_settings(Settings(transcription_model="whisper-large-v3-turbo"))
+
+    assert decode_settings(payload).transcription_model == "whisper-large-v3-turbo"
+
+
 def test_version_four_settings_migrate_to_system_interface_language() -> None:
     payload = encode_settings(Settings(output_language=LanguageCode.RUSSIAN))
     payload["schema_version"] = 4

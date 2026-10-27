@@ -23,13 +23,17 @@ class FakeTransport:
         self.text = text
         self.failure = failure
         self.calls: list[tuple[bytes, str, str | None]] = []
+        self.prompts: list[str | None] = []
         self.close_count = 0
 
     def close(self) -> None:
         self.close_count += 1
 
-    def transcribe(self, wav_bytes: bytes, *, model: str, language: str | None) -> str:
+    def transcribe(
+        self, wav_bytes: bytes, *, model: str, language: str | None, prompt: str | None
+    ) -> str:
         self.calls.append((wav_bytes, model, language))
+        self.prompts.append(prompt)
         if self.failure is not None:
             raise TranscriptionProviderError(self.failure)
         return self.text
@@ -89,7 +93,7 @@ def test_missing_key_causes_zero_provider_calls() -> None:
     assert factory.create_count == 0
 
 
-def test_valid_audio_is_resampled_encoded_and_transcribed_once() -> None:
+def test_valid_audio_is_encoded_and_transcribed_once() -> None:
     transport = FakeTransport(text="  Привіт  ")
     factory = FakeFactory(transport)
     service = TranscriptionService(
@@ -111,7 +115,38 @@ def test_valid_audio_is_resampled_encoded_and_transcribed_once() -> None:
     assert wav_bytes.startswith(b"RIFF")
     assert model == "whisper-large-v3-turbo"
     assert language == "uk"
+    assert transport.prompts[0] is not None and "українською" in transport.prompts[0]
     assert transport.close_count == 1
+
+
+def wav_sample_rate(wav_bytes: bytes) -> int:
+    return int.from_bytes(wav_bytes[24:28], "little")
+
+
+def test_audio_that_fits_the_upload_limit_keeps_its_native_rate() -> None:
+    transport = FakeTransport()
+    service = TranscriptionService(
+        EnvironmentSecretProvider({"WISPER_GROQ_API_KEY": "secret"}), FakeFactory(transport)
+    )
+
+    service.transcribe(valid_audio(), model="model", language=None)
+
+    assert wav_sample_rate(transport.calls[0][0]) == 48_000
+    assert transport.prompts == [None]
+
+
+def test_audio_over_the_upload_limit_is_resampled_for_the_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("wispernext.application.transcription.MAX_NATIVE_UPLOAD_BYTES", 1_000)
+    transport = FakeTransport()
+    service = TranscriptionService(
+        EnvironmentSecretProvider({"WISPER_GROQ_API_KEY": "secret"}), FakeFactory(transport)
+    )
+
+    service.transcribe(valid_audio(), model="model", language=None)
+
+    assert wav_sample_rate(transport.calls[0][0]) == 16_000
 
 
 @pytest.mark.parametrize("code", list(ProviderFailureCode))

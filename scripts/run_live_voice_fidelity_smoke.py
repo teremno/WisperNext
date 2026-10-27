@@ -8,6 +8,7 @@ import argparse
 import json
 from pathlib import Path
 
+from wispernext.application.text_fidelity import lexical_tokens
 from wispernext.bootstrap import build_application_services
 from wispernext.infrastructure.config import LanguageCode, Settings
 
@@ -30,17 +31,74 @@ SAMPLES = {
     LanguageCode.KOREAN: "음 잘 모르겠어요 아마 내일 10시에 전화해 줄 수 있어요",
 }
 
+CONTEXTUAL_REPAIR_CASES = (
+    (
+        "context_uk",
+        LanguageCode.UKRAINIAN,
+        "Кількі трапа буде знаідти картонний конверт.",
+        "Тільки треба буде знайти картонний конверт.",
+    ),
+    (
+        "context_ru",
+        LanguageCode.RUSSIAN,
+        "толька нада найти картонный конверт",
+        "Только надо найти картонный конверт.",
+    ),
+    (
+        "context_en",
+        LanguageCode.ENGLISH,
+        "I need to finde the cardboard envelope",
+        "I need to find the cardboard envelope.",
+    ),
+    (
+        "context_de",
+        LanguageCode.GERMAN,
+        "Ich muss den Kartonumschlag fnden",
+        "Ich muss den Kartonumschlag finden.",
+    ),
+)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--format-only", action="store_true")
     modes.add_argument("--translations-only", action="store_true")
+    modes.add_argument("--contextual-repair-only", action="store_true")
     parser.add_argument("--language", choices=[language.value for language in LanguageCode])
     parser.add_argument("--output", type=Path, help="Write only privacy-safe result metadata.")
     arguments = parser.parse_args()
     processor = build_application_services().text_processing
     evidence: list[dict[str, object]] = []
+    if arguments.contextual_repair_only:
+        for case_id, language, transcript, expected in CONTEXTUAL_REPAIR_CASES:
+            if arguments.language is not None and language.value != arguments.language:
+                continue
+            result = processor.process(
+                transcript,
+                model=Settings().text_model,
+                input_language=language,
+                output_language=None,
+                safe_formatting=True,
+            )
+            record: dict[str, object] = {
+                "case": case_id,
+                "accepted": not result.used_fallback,
+                "reference_match": lexical_tokens(result.text) == lexical_tokens(expected),
+                "failure": result.failure.value if result.failure else None,
+                "attempts": result.attempts,
+            }
+            evidence.append(record)
+            print(json.dumps(record), flush=True)
+        succeeded = bool(evidence) and all(
+            item["accepted"] and item["reference_match"] for item in evidence
+        )
+        payload = {"status": "passed" if succeeded else "failed", "cases": evidence}
+        if arguments.output is not None:
+            arguments.output.parent.mkdir(parents=True, exist_ok=True)
+            arguments.output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps({"status": payload["status"], "case_count": len(evidence)}))
+        return 0 if succeeded else 2
     for language, sample in SAMPLES.items():
         if arguments.language is not None and language.value != arguments.language:
             continue

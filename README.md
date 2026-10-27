@@ -41,6 +41,9 @@ is `F8`; you can change it in Settings. The microphone button also starts and st
 
 Formatting is designed to keep your wording and tone. If optional processing fails
 validation, WisperNext keeps the original transcript.
+When optional formatting or translation runs, it is also instructed not to add
+stock AI, marketing, or bureaucratic phrasing. This does not rewrite expressions
+you actually spoke or guarantee that every recognition error will be corrected.
 
 ## Install
 

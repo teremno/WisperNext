@@ -28,6 +28,7 @@ class TextProcessingFailureCode(StrEnum):
     TIMEOUT = "timeout"
     UNAVAILABLE = "unavailable"
     INVALID_REQUEST = "invalid_request"
+    INVALID_OUTPUT = "invalid_output"
     EMPTY_RESPONSE = "empty_response"
     UNSAFE_RESPONSE = "unsafe_response"
     UNEXPECTED = "unexpected"
@@ -141,16 +142,21 @@ class TextProcessingService:
         input_language: LanguageCode | None,
         output_language: LanguageCode | None,
     ) -> TextProcessingResult:
-        max_attempts = 2 if mode is TextProcessingMode.TRANSLATE else 1
+        # A malformed structured answer is worth one more request in any mode; an unsafe
+        # formatting answer is not, because the model tends to repeat the same edit.
+        max_attempts = 2
+        retry_unsafe = mode is TextProcessingMode.TRANSLATE
         for attempt in range(1, max_attempts + 1):
             try:
                 response = transport.process(
                     transcript,
                     model=model,
                     mode=mode,
-                    target_language=output_language,
+                    target_language=output_language or input_language,
                 )
             except TextProcessingProviderError as exc:
+                if exc.code is ProviderFailureCode.INVALID_OUTPUT and attempt < max_attempts:
+                    continue
                 return _fallback(
                     transcript, TextProcessingFailureCode(exc.code.value), attempts=attempt
                 )
@@ -173,7 +179,7 @@ class TextProcessingService:
                 return TextProcessingResult(
                     candidate, candidate != transcript, False, attempts=attempt
                 )
-            if attempt == max_attempts:
+            if attempt == max_attempts or not retry_unsafe:
                 return _fallback(transcript, failure, attempts=attempt)
         raise AssertionError("Text processing attempt loop must return.")
 
