@@ -18,7 +18,8 @@ $shortcut.TargetPath = $pythonw
 $shortcut.Arguments = "-m wispernext"
 $shortcut.WorkingDirectory = $projectRoot
 $shortcut.Description = "WisperNext voice dictation"
-$shortcut.IconLocation = "$pythonw,0"
+$icon = Join-Path $projectRoot "assets\wispernext.ico"
+$shortcut.IconLocation = if (Test-Path -LiteralPath $icon -PathType Leaf) { "$icon,0" } else { "$pythonw,0" }
 $shortcut.Save()
 
 if (-not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) {
