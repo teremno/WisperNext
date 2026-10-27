@@ -49,3 +49,18 @@ def test_resampling_does_not_mutate_raw_audio() -> None:
     assert processed.sample_rate == 6
     assert len(processed.samples) == 6
     assert processed.callback_statuses == raw.callback_statuses
+
+
+def test_downsampling_filters_noise_above_the_new_nyquist_frequency() -> None:
+    sample_rate = 48_000
+    tone = tuple(0.5 * math.sin(2 * math.pi * 10_000 * i / sample_rate) for i in range(4_800))
+    speech = tuple(0.5 * math.sin(2 * math.pi * 500 * i / sample_rate) for i in range(4_800))
+
+    def rms(audio: CapturedAudio) -> float:
+        return math.sqrt(sum(sample * sample for sample in audio.samples) / len(audio.samples))
+
+    filtered_tone = resample_mono(CapturedAudio(tone, sample_rate), 16_000)
+    kept_speech = resample_mono(CapturedAudio(speech, sample_rate), 16_000)
+
+    assert rms(filtered_tone) < 0.1
+    assert rms(kept_speech) > 0.33

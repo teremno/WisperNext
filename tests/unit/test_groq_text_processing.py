@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 import pytest
-from groq import APITimeoutError
+from groq import APITimeoutError, BadRequestError
 
 from wispernext.application import (
     ProviderFailureCode,
@@ -61,6 +61,47 @@ def test_transport_uses_schema_bound_capped_translation_request() -> None:
     assert isinstance(messages, list)
     assert "Привіт" not in messages[0]["content"]
     assert json.loads(messages[1]["content"])["transcript"] == "Привіт"
+
+
+@pytest.mark.parametrize(
+    "language,marker,excluded",
+    [
+        (LanguageCode.UKRAINIAN, "Russian calques", "LinkedIn boilerplate"),
+        (LanguageCode.ENGLISH, "LinkedIn boilerplate", "Beamtendeutsch"),
+        (LanguageCode.GERMAN, "Beamtendeutsch", "Russian calques"),
+    ],
+)
+@pytest.mark.parametrize("mode", [TextProcessingMode.FORMAT, TextProcessingMode.TRANSLATE])
+def test_humanizer_guidance_follows_output_language_without_an_extra_call(
+    language: LanguageCode, marker: str, excluded: str, mode: TextProcessingMode
+) -> None:
+    completions = FakeCompletions(json.dumps({"text": "result", "language": language.value}))
+    transport = GroqTextProcessingTransport(fake_client(completions))
+
+    transport.process("spoken words", model="model", mode=mode, target_language=language)
+
+    assert len(completions.calls) == 1
+    messages = completions.calls[0]["messages"]
+    assert isinstance(messages, list)
+    system = messages[0]["content"]
+    assert marker in system
+    assert excluded not in system
+    assert "not the speaker's authentic words" in system
+    assert json.loads(messages[1]["content"])["transcript"] == "spoken words"
+
+
+def test_auto_detect_formatting_uses_general_voice_rules_without_guessing_a_language() -> None:
+    completions = FakeCompletions('{"text":"Hello","language":"en"}')
+    transport = GroqTextProcessingTransport(fake_client(completions))
+
+    transport.process("hello", model="model", mode=TextProcessingMode.FORMAT, target_language=None)
+
+    messages = completions.calls[0]["messages"]
+    assert isinstance(messages, list)
+    system = messages[0]["content"]
+    assert "stock AI wording" in system
+    assert "Russian calques" not in system
+    assert "LinkedIn boilerplate" not in system
 
 
 @pytest.mark.parametrize("target_language", list(LanguageCode))
@@ -166,3 +207,27 @@ def test_transport_close_releases_owned_http_client() -> None:
     transport = GroqTextProcessingTransport(SimpleNamespace(close=lambda: closed.append(True)))
     transport.close()
     assert closed == [True]
+
+
+@pytest.mark.parametrize(
+    "body, expected",
+    [
+        ({"error": {"code": "json_validate_failed"}}, ProviderFailureCode.INVALID_OUTPUT),
+        ({"code": "json_validate_failed"}, ProviderFailureCode.INVALID_OUTPUT),
+        ({"error": {"code": "model_not_found"}}, ProviderFailureCode.INVALID_REQUEST),
+        (None, ProviderFailureCode.INVALID_REQUEST),
+    ],
+)
+def test_transport_separates_schema_failures_from_bad_requests(
+    body: object, expected: ProviderFailureCode
+) -> None:
+    request = httpx.Request("POST", "https://api.groq.com")
+    error = BadRequestError("bad request", response=httpx.Response(400, request=request), body=body)
+    transport = GroqTextProcessingTransport(fake_client(FakeCompletions(error)))
+
+    with pytest.raises(TextProcessingProviderError) as raised:
+        transport.process(
+            "text", model="model", mode=TextProcessingMode.FORMAT, target_language=None
+        )
+
+    assert raised.value.code is expected

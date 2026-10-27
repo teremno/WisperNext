@@ -3,6 +3,7 @@
 import math
 from dataclasses import dataclass
 from enum import StrEnum
+from itertools import accumulate
 
 
 class AudioCategory(StrEnum):
@@ -79,17 +80,36 @@ def resample_mono(audio: CapturedAudio, target_sample_rate: int) -> CapturedAudi
         raise ValueError("target_sample_rate must be positive")
     if target_sample_rate == audio.sample_rate or not audio.samples:
         return CapturedAudio(tuple(audio.samples), target_sample_rate, audio.callback_statuses)
-    output_count = max(1, round(len(audio.samples) * target_sample_rate / audio.sample_rate))
+    source = audio.samples
+    width = audio.sample_rate // target_sample_rate
+    if width >= 2:
+        # Linear interpolation alone folds noise above the new Nyquist frequency back into
+        # the speech band. Two moving averages form a cheap triangular low-pass filter.
+        source = _moving_average(_moving_average(source, width), width)
+    output_count = max(1, round(len(source) * target_sample_rate / audio.sample_rate))
     if output_count == 1:
-        output: tuple[float, ...] = (audio.samples[0],)
+        output: tuple[float, ...] = (source[0],)
     else:
-        scale = (len(audio.samples) - 1) / (output_count - 1)
+        scale = (len(source) - 1) / (output_count - 1)
         values: list[float] = []
         for output_index in range(output_count):
             source_position = output_index * scale
             left = int(source_position)
-            right = min(left + 1, len(audio.samples) - 1)
+            right = min(left + 1, len(source) - 1)
             fraction = source_position - left
-            values.append(audio.samples[left] * (1 - fraction) + audio.samples[right] * fraction)
+            values.append(source[left] * (1 - fraction) + source[right] * fraction)
         output = tuple(values)
     return CapturedAudio(output, target_sample_rate, audio.callback_statuses)
+
+
+def _moving_average(samples: tuple[float, ...], width: int) -> tuple[float, ...]:
+    """Center a running-sum average; edges average over the samples that exist."""
+    count = len(samples)
+    sums = list(accumulate(samples, initial=0.0))
+    before = width // 2
+    after = width - before
+    return tuple(
+        (sums[min(count, index + after)] - sums[max(0, index - before)])
+        / (min(count, index + after) - max(0, index - before))
+        for index in range(count)
+    )

@@ -12,8 +12,9 @@ from uuid import uuid4
 
 from wispernext.domain import HotkeyValidationError, MicrophoneSelectionMode, parse_hotkey
 
-CURRENT_SCHEMA_VERSION: Final = 5
+CURRENT_SCHEMA_VERSION: Final = 6
 MIN_RECORDING_SECONDS: Final = 5
+DEFAULT_TRANSCRIPTION_MODEL: Final = "whisper-large-v3"
 MAX_RECORDING_SECONDS: Final = 1_800
 
 
@@ -64,7 +65,7 @@ class Settings:
     input_language: LanguageCode | None = None
     output_language: LanguageCode | None = None
     safe_formatting: bool = True
-    transcription_model: str = "whisper-large-v3-turbo"
+    transcription_model: str = DEFAULT_TRANSCRIPTION_MODEL
     text_model: str = "openai/gpt-oss-120b"
 
 
@@ -101,6 +102,9 @@ _VERSION_ONE_FIELDS: Final = _FIELDS - {
 _VERSION_TWO_FIELDS: Final = _FIELDS - {"interface_language", *_POSITION_FIELDS}
 _VERSION_THREE_FIELDS: Final = _FIELDS - {"interface_language"}
 _VERSION_FOUR_FIELDS: Final = _VERSION_THREE_FIELDS
+_VERSION_FIVE_FIELDS: Final = _FIELDS
+# Turbo was the default before version 6; full Whisper makes fewer Ukrainian errors.
+_PREVIOUS_DEFAULT_TRANSCRIPTION_MODEL: Final = "whisper-large-v3-turbo"
 
 
 def decode_settings(payload: object) -> Settings:
@@ -192,8 +196,22 @@ def decode_settings(payload: object) -> Settings:
             "schema_version": CURRENT_SCHEMA_VERSION,
             "interface_language": None,
         }
+    elif version == 5:
+        unknown = set(values) - _VERSION_FIVE_FIELDS
+        missing = _VERSION_FIVE_FIELDS - set(values)
+        if unknown:
+            raise SettingsValidationError(f"Unknown settings fields: {sorted(unknown)!r}.")
+        if missing:
+            raise SettingsValidationError(f"Missing settings fields: {sorted(missing)!r}.")
+        values = {**values, "schema_version": CURRENT_SCHEMA_VERSION}
     elif version != CURRENT_SCHEMA_VERSION:
         raise SettingsValidationError(f"Unsupported settings schema version: {version}.")
+
+    if (
+        version != CURRENT_SCHEMA_VERSION
+        and values.get("transcription_model") == _PREVIOUS_DEFAULT_TRANSCRIPTION_MODEL
+    ):
+        values = {**values, "transcription_model": DEFAULT_TRANSCRIPTION_MODEL}
 
     unknown = set(values) - _FIELDS
     missing = _FIELDS - set(values)

@@ -163,6 +163,73 @@ def test_presentation_and_unmistakable_small_spelling_edits_remain_allowed(
     assert preserves_wording(source, candidate)
 
 
+@pytest.mark.parametrize(
+    "language,source,candidate",
+    [
+        (
+            LanguageCode.UKRAINIAN,
+            "Кількі трапа буде знаідти картонний конверт.",
+            "Тільки треба буде знайти картонний конверт.",
+        ),
+        (
+            LanguageCode.RUSSIAN,
+            "толька нада найти картонный конверт",
+            "Только надо найти картонный конверт.",
+        ),
+        (
+            LanguageCode.ENGLISH,
+            "I need to finde the cardboard envelope",
+            "I need to find the cardboard envelope.",
+        ),
+        (
+            LanguageCode.GERMAN,
+            "Ich muss den Kartonumschlag fnden",
+            "Ich muss den Kartonumschlag finden.",
+        ),
+    ],
+)
+def test_clear_contextual_recognition_repairs_reach_the_user(
+    language: LanguageCode, source: str, candidate: str
+) -> None:
+    processor, _ = service(ProviderTextResult(candidate, language.value))
+
+    result = processor.process(
+        source,
+        model="model",
+        input_language=language,
+        output_language=None,
+        safe_formatting=True,
+    )
+
+    assert result.text == candidate
+    assert not result.used_fallback
+
+
+@pytest.mark.parametrize(
+    "source,candidate",
+    [
+        (
+            "Кількі трапа буде знаідти картонний конверт.",
+            "Завтра треба буде знайти картонний конверт.",
+        ),
+        (
+            "Завтра треба буде знайти картонний конверт.",
+            "Завтра треба буде продати картонний конверт.",
+        ),
+        (
+            "Треба буде знайти цей картонний конверт завтра.",
+            "Можна буде продати мій паперовий пакет завтра.",
+        ),
+        (
+            "Ich kann nicht kommen morgen.",
+            "Ich kann kommen morgen.",
+        ),
+    ],
+)
+def test_contextual_repair_still_rejects_changed_meaning(source: str, candidate: str) -> None:
+    assert not preserves_wording(source, candidate)
+
+
 def test_unicode_combining_marks_remain_part_of_hindi_words() -> None:
     assert lexical_tokens("मुझे नहीं पता") == ["मुझे", "नहीं", "पता"]
 
@@ -178,6 +245,16 @@ def test_unicode_combining_marks_remain_part_of_hindi_words() -> None:
             LanguageCode.UKRAINIAN,
             "добре це не тільки робота це моє життя",
             "Добре, це не тільки робота, це моє життя.",
+        ),
+        (
+            LanguageCode.ENGLISH,
+            "it's not just work it's my life",
+            "It's not just work, it's my life.",
+        ),
+        (
+            LanguageCode.GERMAN,
+            "das ist nicht nur Arbeit das ist mein Leben",
+            "Das ist nicht nur Arbeit, das ist mein Leben.",
         ),
     ],
 )
@@ -248,3 +325,42 @@ def test_translation_length_guard_accounts_for_cjk_scripts(
 def test_existing_question_cannot_become_a_statement() -> None:
     assert not preserves_literals("can you call me?", "Can you call me.")
     assert preserves_literals("можеш подзвонити?", "Can you call me?")
+
+
+@pytest.mark.parametrize(
+    "source,candidate",
+    [
+        ("я піду в магазин завтра зранку", "Я піду у магазин завтра зранку."),
+        ("якщо ти хочеш та приходь", "Якщо ти хочеш, то приходь."),
+        ("я хочу купи ти хліба сьогодні ввечері", "Я хочу купити хліба сьогодні ввечері."),
+        (
+            "давай зустрінемось завтравечері біля входу",
+            "Давай зустрінемось завтра ввечері біля входу.",
+        ),
+        ("мені треба кар тонний конверт на пошті", "Мені треба картонний конверт на пошті."),
+        ("ну е-е я думаю що так", "Ну, я думаю, що так."),
+        ("я незнаю що робити", "Я не знаю, що робити."),
+        ("Я, думаю, що, це, добре, працює", "Я думаю, що це добре працює."),
+    ],
+)
+def test_common_ukrainian_recognition_repairs_are_accepted(source: str, candidate: str) -> None:
+    assert preserves_wording(source, candidate)
+    assert preserves_literals(source, candidate)
+
+
+@pytest.mark.parametrize(
+    "source,candidate",
+    [
+        ("я не можу прийти", "Я можу прийти."),
+        ("він прийде завтра", "Вона прийде завтра."),
+        ("ти прийдеш завтра", "Ми прийдемо завтра."),
+        ("купи ти хліба", "Купи хліба."),
+        ("я піду в магазин", "Я піду в магазин і в аптеку."),
+        ("добре домовились до завтра дякую за перегляд", "Добре, домовились, до завтра."),
+        ("я сам це зроблю", "Я сам це не зроблю."),
+    ],
+)
+def test_repairs_that_change_negation_person_or_content_are_rejected(
+    source: str, candidate: str
+) -> None:
+    assert not preserves_wording(source, candidate)

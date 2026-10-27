@@ -119,7 +119,7 @@ def test_safe_formatting_accepts_conservative_punctuation() -> None:
     assert result.text == "Привіт, це тест."
     assert result.transformed
     assert not result.used_fallback
-    assert factory.transport.calls == [("model", TextProcessingMode.FORMAT, None)]
+    assert factory.transport.calls == [("model", TextProcessingMode.FORMAT, LanguageCode.UKRAINIAN)]
 
 
 def test_translation_accepts_requested_output_language() -> None:
@@ -303,3 +303,55 @@ def test_excessive_same_language_rewrite_is_rejected() -> None:
 
     assert result.used_fallback
     assert result.text == "please schedule the meeting for tomorrow morning"
+
+
+def test_schema_failure_is_retried_once_in_formatting_mode() -> None:
+    class SchemaFailureTransport(FakeTransport):
+        def __init__(self) -> None:
+            super().__init__(ProviderTextResult("Привіт, це тест.", "uk"))
+            self.failed = False
+
+        def process(
+            self,
+            transcript: str,
+            *,
+            model: str,
+            mode: TextProcessingMode,
+            target_language: LanguageCode | None,
+        ) -> ProviderTextResult:
+            self.calls.append((model, mode, target_language))
+            if not self.failed:
+                self.failed = True
+                raise TextProcessingProviderError(ProviderFailureCode.INVALID_OUTPUT)
+            return ProviderTextResult("Привіт, це тест.", "uk")
+
+    transport = SchemaFailureTransport()
+    processor = TextProcessingService(FakeSecretProvider(), FakeFactory(transport))
+
+    result = processor.process(
+        "привіт це тест",
+        model="model",
+        input_language=LanguageCode.UKRAINIAN,
+        output_language=None,
+        safe_formatting=True,
+    )
+
+    assert result.text == "Привіт, це тест."
+    assert not result.used_fallback
+    assert result.attempts == 2
+
+
+def test_unsafe_formatting_is_not_retried() -> None:
+    processor, factory = service(ProviderTextResult("Я можу прийти.", "uk"))
+
+    result = processor.process(
+        "я не можу прийти",
+        model="model",
+        input_language=LanguageCode.UKRAINIAN,
+        output_language=None,
+        safe_formatting=True,
+    )
+
+    assert result.used_fallback
+    assert result.attempts == 1
+    assert len(factory.transport.calls) == 1

@@ -83,6 +83,59 @@ _NEGATIONS = frozenset(
         "없다",
     ]
 )
+_POLARITY_PREFIXES = ("un", "non", "dis", "не", "без")
+# A pronoun swap changes who does what even when the words sound alike.
+_PRONOUNS = frozenset(
+    [
+        "я",
+        "ти",
+        "він",
+        "вона",
+        "воно",
+        "ми",
+        "ви",
+        "вони",
+        "мене",
+        "тебе",
+        "його",
+        "її",
+        "нас",
+        "вас",
+        "їх",
+        "мені",
+        "тобі",
+        "йому",
+        "їй",
+        "нам",
+        "вам",
+        "ты",
+        "он",
+        "она",
+        "оно",
+        "они",
+        "меня",
+        "i",
+        "you",
+        "he",
+        "she",
+        "we",
+        "they",
+        "me",
+        "him",
+        "her",
+        "us",
+        "them",
+    ]
+)
+_PROTECTED = _NEGATIONS | _PRONOUNS
+# Hesitation sounds are not words; formatting may drop them.
+_HESITATIONS = frozenset(
+    [
+        *("е", "ее", "еее", "ем", "емм", "мм", "ммм", "хм", "э", "ээ", "эм"),
+        *("um", "umm", "uh", "uhm", "er", "erm", "hmm", "mm", "äh", "ähm", "öh", "euh"),
+    ]
+)
+_MAXIMUM_REPAIR_RUN = 3
 
 
 def lexical_tokens(text: str) -> list[str]:
@@ -123,31 +176,92 @@ def preserves_literals(source: str, candidate: str) -> bool:
 
 
 def preserves_wording(source: str, candidate: str) -> bool:
-    """Allow presentation changes and a few small spelling corrections, never rewriting."""
+    """Allow bounded context-supported recognition repairs without broad rewriting."""
     original = lexical_tokens(source)
     formatted = lexical_tokens(candidate)
     if original == formatted:
         return True
-    if len(original) != len(formatted):
-        return False
     changes = 0
-    for before, after in zip(original, formatted, strict=True):
-        if before == after:
+    matcher = SequenceMatcher(None, original, formatted, autojunk=False)
+    for tag, start, end, repaired_start, repaired_end in matcher.get_opcodes():
+        if tag == "equal":
             continue
-        if before in _NEGATIONS or after in _NEGATIONS:
+        before = original[start:end]
+        after = formatted[repaired_start:repaired_end]
+        if tag == "delete" and all(word in _HESITATIONS for word in before):
+            continue
+        if not _is_recognition_repair(before, after):
             return False
-        if min(len(before), len(after)) < 4:
+        changes += max(len(before), len(after))
+    # Long dictation from a distant microphone may contain several separate errors, but
+    # unchanged words must still dominate so the meaning stays anchored.
+    maximum_changes = 1 if len(original) <= 2 else min(len(original) // 2, 4 + len(original) // 10)
+    return changes <= maximum_changes
+
+
+def _is_recognition_repair(before: list[str], after: list[str]) -> bool:
+    """Accept near-sounding words, or one word split apart or run together."""
+    if not before or not after or max(len(before), len(after)) > _MAXIMUM_REPAIR_RUN:
+        return False
+    if len(before) == len(after):
+        return all(_is_word_repair(old, new) for old, new in zip(before, after, strict=True))
+    # Re-spacing must keep the letters: "купи ти" -> "купити", "кар тонний" -> "картонний".
+    joined_before = "".join(before)
+    joined_after = "".join(after)
+    if any(word in _PROTECTED for word in (*before, *after)):
+        return joined_before == joined_after
+    return _within_edit_limit(joined_before, joined_after, 1)
+
+
+def _is_word_repair(before: str, after: str) -> bool:
+    if before == after:
+        return True
+    if before in _PROTECTED or after in _PROTECTED or _changes_polarity(before, after):
+        return False
+    if _without_marks(before) == _without_marks(after):
+        # Added or removed vocalization changes the written form the speaker chose.
+        return False
+    if max(len(before), len(after)) > 64:
+        return False
+    if min(len(before), len(after)) < 4:
+        # Short function words that differ by one sound: "в" -> "у", "та" -> "то".
+        return _within_edit_limit(before, after, 1)
+    matcher = SequenceMatcher(None, before, after, autojunk=False)
+    # A recognition error may affect several letters in one word. The unchanged
+    # neighboring words still need to anchor its meaning.
+    return matcher.ratio() >= 0.55 and _within_edit_limit(before, after, 3)
+
+
+def _within_edit_limit(before: str, after: str, limit: int) -> bool:
+    """Compare short words with a bounded Levenshtein distance."""
+    if abs(len(before) - len(after)) > limit:
+        return False
+    previous = list(range(len(after) + 1))
+    for index, character in enumerate(before, start=1):
+        current = [index]
+        for column, other in enumerate(after, start=1):
+            current.append(
+                min(
+                    previous[column] + 1,
+                    current[column - 1] + 1,
+                    previous[column - 1] + (character != other),
+                )
+            )
+        if min(current) > limit:
             return False
-        matcher = SequenceMatcher(None, before, after, autojunk=False)
-        edits = sum(
-            max(end_before - start_before, end_after - start_after)
-            for tag, start_before, end_before, start_after, end_after in matcher.get_opcodes()
-            if tag != "equal"
-        )
-        if edits > 1 or matcher.ratio() < 0.85:
-            return False
-        changes += 1
-    return changes <= max(1, len(original) // 20)
+        previous = current
+    return previous[-1] <= limit
+
+
+def _without_marks(word: str) -> str:
+    return "".join(character for character in word if unicodedata.category(character) != "Mn")
+
+
+def _changes_polarity(before: str, after: str) -> bool:
+    """Never erase or insert a common attached negative prefix."""
+    return any(
+        before == prefix + after or after == prefix + before for prefix in _POLARITY_PREFIXES
+    )
 
 
 def _literals(text: str) -> Counter[str]:
